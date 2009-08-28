@@ -1,0 +1,2 @@
+q.logger.log("Testen van de logger vanuit de agent", 3)
+params['result'] = params['input'] + ' world'
