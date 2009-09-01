@@ -12,6 +12,9 @@ class SocketTask:
     '''
     The SocketTask starts a tasklet that listens for incomming connections. Only one connection will be granted access. 
     When a client is connected, a second tasklet will be started. One tasklet is responsible for receiving messages, the other for sending messages.
+    
+    The SocketTask can receive and send dicts: the dicts are serialized and deserialized using yaml, messages are seperated using '\n---\n'.
+    When the task receives a message, it will create a new tasklet and call the messageHandler, passing it the received data as a parameter.
     '''
     
     def __init__(self, port):
@@ -21,6 +24,12 @@ class SocketTask:
         
         self.__receiving_tasklet = None
         self.__sending_tasklet = None
+    
+    def setMessageHandler(self, messageHandler):
+        '''
+        Set the callback that will be called when a message is received. The callback will be passed a dictionary.
+        '''
+        self.__messageHandler = messageHandler
     
     def start(self):
         ''' Start the task: start one tasklet listing for incomming connections. '''
@@ -60,8 +69,7 @@ class SocketTask:
                 else:
                     data = yaml.load(buffer)
                     q.logger.log("[SocketTask] Received data: " + str(data), 5)
-                    ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
-                    self.sendData({'id':data['id'], 'return':ret})
+                    Tasklet.new(self.__messageHandler)(data)    
                     buffer = ""
                     
         except EOFError:

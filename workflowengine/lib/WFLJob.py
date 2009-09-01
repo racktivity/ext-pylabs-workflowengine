@@ -5,7 +5,7 @@ from concurrence import Tasklet
 from datetime import datetime
 from time import mktime
 
-from workflowengine.Exceptions import ParentNotFoundException, JobNotRunningException, LogmessageFormatViolationException 
+from workflowengine.Exceptions import JobNotRunningException 
 
 def inheritFromParent(childjob, parentjob):
     for field in ['name', 'description', 'userErrormsg', 'internalErrormsg', 'maxduration']:
@@ -77,16 +77,14 @@ class WFLJob:
     def log(self, logmessage, level=5, source=""):
         """
         Creates a new log entry in the job. Internal format is specified in the DRP model.
-        None of the parameters can contain the "|" character, an exception will be thrown if this constraint is violated.
+        The parameters may not contain '|', if they do, '|' will be replaced by '/'
         
         @param logmessage:        The message to log.
-        @param level:             The loglevel: TODO add debug levels from pylabs, couldn't find them...
+        @param level:             The loglevel, the maximum loglevel is 5.
         @param source:            The source of the log message, eg: an agent.
-        
-        @raise LogmessageFormatViolationException: if the logmessage contains '|' 
         """
-        if '|' in logmessage:
-            raise LogmessageFormatViolationException("Logmessage: '" + logmessage + "' contains invalid symbol '|'")
+        if '|' in logmessage: logmessage = logmessage.replace('|', '/')
+        if '|' in source: source = source.replace('|', '/')
         
         epoch = getUnixTimestamp()
         logentry = createLogEntry(epoch, level, source, logmessage)
@@ -99,7 +97,7 @@ class WFLJob:
         @raise JobNotRunningException: if the job is not running
         """
         if str(self.job.jobstatus) <> "RUNNING":
-            raise JobNotRunningException("Job '" + self.job.guid + "' is not running: state is " + str(self.job.jobstatus))
+            raise JobNotRunningException(self.job.guid, self.job.jobstatus)
         
         self.job.jobstatus = "DONE"
         self.job.endtime = str(datetime.now())
@@ -113,7 +111,7 @@ class WFLJob:
         @raise JobNotRunningException: if the job is not running
         """
         if str(self.job.jobstatus) <> "RUNNING":
-            raise JobNotRunningException("Job '" + self.job.guid + "' is not running: state is " + str(self.job.jobstatus))
+            raise JobNotRunningException(self.job.guid, self.job.jobstatus)
         
         self.job.jobstatus = "ERROR"
         self.job.endtime = str(datetime.now())

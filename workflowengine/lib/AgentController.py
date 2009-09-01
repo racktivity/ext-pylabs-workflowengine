@@ -176,7 +176,7 @@ class AgentController:
         q.logger.log("[AGENTCONTROLLER] Log from agent '" + agentguid + "' for job '" + jobguid + "' with level '" + str(level) + "' : " + message, 6)
         self.__jobQueue.getLogger(jobguid)(message.encode(), level=level, source=agentguid.encode())
 
-    def _disconnected(self, reason):
+    def _disconnected(self):
         self.__presenceList.clear()
 
     def __sendMessage(self, to, type, id, message=' '):
@@ -226,7 +226,6 @@ class JobQueue:
     def died(self, jobguid, agentguid, errorcode, erroroutput):
         if self.__checkJob(jobguid, agentguid):
             acjob = self.queue[jobguid]
-            acjob = ACJob()
             acjob.running = False
             acjob.failed = True
             acjob.errorcode = errorcode
@@ -244,7 +243,7 @@ class JobQueue:
     
     def __timeout_tasklet(self, caller, timeout):
         Tasklet.sleep(timeout)
-        if not hasattr(Tasklet.current(), jobdone):
+        if not hasattr(Tasklet.current(), 'jobdone'):
             MSG_JOB_TIMEOUT.send(caller)()
     
     def getJobInfo(self, jobguid):

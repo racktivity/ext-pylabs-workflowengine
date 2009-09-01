@@ -51,7 +51,7 @@ class WFLAgentController:
                 params = output['params']
             else:
                 job.raiseError("ERROR OCCURRED: errorcode=" + str(output['errorcode']) +", " + output['erroroutput'])
-                raise ScriptFailedException(output['errorcode'], output['erroroutput'])
+                raise ScriptFailedException(job.getJobGUID(), agentguid, scriptpath, output['errorcode'], output['erroroutput'])
         except IOError, ioe:
             job.raiseError(ioe)
             raise
@@ -59,7 +59,12 @@ class WFLAgentController:
             job.raiseError(anae)
             raise
         except TimeOutException, te:
-            self.__agentController.killScript(agentguid, job.getJobGUID(), 10)
+            try:
+                self.__agentController.killScript(agentguid, job.getJobGUID(), 10)
+            except TimeOutException:
+                q.logger.log("Failed to kill Script '" + scriptpath + "' on agent '" + agentguid + "' for job '" + job.getJobGUID(), 1)
+            
+            (te.jobguid, te.agentguid, te.scriptpath, te.timeout) = (job.getJobGUID(), agentguid, scriptpath, timeout)
             job.raiseError(te)
             raise
         else:

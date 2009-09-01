@@ -4,49 +4,26 @@ from concurrence import Tasklet, Message, dispatch
 from workflowengine.DRPClient import DRPTask
 from workflowengine.SocketServer import SocketTask
 from workflowengine.AgentController import AgentControllerTask 
-
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.WFLJob import WFLJob
 
-def testDrpTasklet(num):
-    job1 = q.drp.job.new()
-    job1.name = "testen"
-    q.drp.job.save(job1)
-    print str(num) + ": JobGUID1 = " + job1.guid
-    
-    job2 = q.drp.job.new()
-    job2.name = "testen"
-    job2.parentjobguid = job1.guid
-    job2.order = 5
-    q.drp.job.save(job2)
-    print str(num) + ": JobGUID2 = " + job2.guid
-    
-    WFLJob.printJobTree(job2.guid)
-    print "Next Child: " + str(WFLJob.getNextChildOrder(job2.guid))
-    
-def nonBlockingChecker():
-    while True:
-        print "."
-        Tasklet.sleep(0.1)
-
-def testing():
-    Tasklet.sleep(3)
-    ret = q.workflowengine.actionmanager.startRootobjectAction("ro_test", "test", {'num':10})
-    print ret['result']
-    WFLJob.printJobTree(ret['jobguid'])
-    
-    #job = q.drp.job.new()
-    #q.drp.job.save(job)
-    #Tasklet.sleep(3)
-    #ret = q.workflowengine.agentcontroller.executeActorActionScript('agent1', 'aa_test', 'test', 'test_agent', {'input':'hello'}, job.guid)
-    #print str(ret)
+import workflowengine.ConcurrenceSocket as ConcurrenceSocket
+ConcurrenceSocket.install()
 
 def main():
     try:
         q.logger.addLogTarget(WFLJobLogTarget())
         
         socket_task = SocketTask(9876)
-        drp_task = DRPTask('http://localhost:8888', 'osis_service')
+        def _handle_message(data):
+            try:
+                ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
+                socket_task.sendData({'id':data['id'], 'error':False, 'return':ret})
+            except Exception, e:
+                socket_task.sendData({'id':data['id'], 'error':True, 'exception':e})
+        socket_task.setMessageHandler(_handle_message)
+        
+        drp_task = DRPTask('http://127.0.0.1:8888', 'osis_service')
         ac_task = AgentControllerTask('agentcontroller', 'host147.office.aserver.com', 'test')
         
     except Exception, e:
@@ -62,10 +39,7 @@ def main():
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
         
-        test_task = Tasklet.new(testing)()
-        
-        #test_task = Tasklet.new(testDrpTasklet)(1)
-        #checker_task = Tasklet.new(nonBlockingChecker)()
+        print "Ready !"
     
 if __name__=='__main__':
     dispatch(main)

@@ -21,7 +21,9 @@ class WFLActionManager():
         self.id = 0
 
     def _receivedData(self, data):
-        self.running[data['id']]['return'] = data['return']
+        self.running[data['id']]['return'] = data.get('return')
+        self.running[data['id']]['error'] = data.get('error')
+        self.running[data['id']]['exception'] = data.get('exception')
         self.running[data['id']]['lock'].release()
 
     def startActorAction(self, actorname, actionname, params, executionparams={}, jobguid=None):
@@ -49,7 +51,11 @@ class WFLActionManager():
         # Wait for receivedData to release the lock
         my_lock.release()
         
-        return self.running.pop(my_id)['return']
+        data = self.running.pop(my_id)
+        if not data['error']:
+            return data['return']
+        else:
+            raise data['exception']
 
 
 class ActionUnavailableException(Exception):

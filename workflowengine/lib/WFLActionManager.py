@@ -6,8 +6,6 @@ from workflowengine.Exceptions import ActionNotFoundException
 
 from concurrence import Tasklet, Message
 
-import traceback
-
 ActionManagerTaskletPath = '/opt/qbase3/apps/workflowengine/tasklets/'
 ActorActionTaskletPath = ActionManagerTaskletPath + 'actor/'
 RootobjectActionTaskletPath = ActionManagerTaskletPath + 'rootobject/'
@@ -142,7 +140,6 @@ class WFLActionManager():
         try:
             self.__taskletEngine.execute(params, tags=tags, path=path)
         except Exception, e:
-            traceback.print_exc()
             MSG_ACTION_EXCEPTION.send(parentTasklet)(e)
         else:
             MSG_ACTION_RETURN.send(parentTasklet)()

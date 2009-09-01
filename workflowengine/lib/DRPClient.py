@@ -38,6 +38,9 @@ class DRPInterface():
     def findAsView(self, filter_, viewName):
         return self.__sendToDrpTasklet('findAsView', filter_, viewName)
 
+    def query(self, query):
+        return self.__sendToDrpTasklet('query', query)
+
     @staticmethod
     def getFilterObject():
         return OsisFilterObject()
