@@ -9,10 +9,10 @@ class WFLActionManager():
     """
     def __init__(self):
         self.factory = YamlClientFactory(self._receivedData)
-        config = i.config.stacklesssocket.getConfig('main')
+        config = i.config.workflowengine.getConfig('main')
         
         def _do_connect():
-            reactor.connectTCP(config['host'], int(config['port']), self.factory)
+            reactor.connectTCP('localhost', int(config['port']), self.factory)
         reactor.callInThread(_do_connect)
         
         self.running = {}
