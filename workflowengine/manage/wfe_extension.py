@@ -32,33 +32,22 @@ else:
     AgentController = Dummy
     Drp = Dummy
 
-class AgentControllerConfigItem(ConfigManagementItem):
+
+class WFLConfigItem(ConfigManagementItem):
     """
-    Configuration of the agentcontroller.
+    Configuration of the Workflowengine.
     """
 
-    CONFIGTYPE = "agentcontroller"
-    DESCRIPTION = "agentcontroller configuration"
+    CONFIGTYPE = "Workflowengine"
+    DESCRIPTION = "Workflowengine configuration"
 
     def ask(self):
-        self.dialogAskString('agentcontrollerid', 'The ID of the agentcontroller', None)
-        self.dialogAskString('xmppserver', 'The dns-address of the xmpp server', None)
-        self.dialogAskPassword('password', 'The password for the agent on the xmpp server', None)
+        self.dialogAskInteger('port', 'The port of workflowengine socket', 9876)
+        self.dialogAskString('osis_address', 'The address of the applicationserver running the OSIS service', 'http://127.0.0.1:8888')
+        self.dialogAskString('osis_service', 'The name of the OSIS service', 'osis_service')
+        self.dialogAskString('xmppserver', 'The DNS address of the XMPP server', None)
+        self.dialogAskString('agentcontrollerguid', 'The agentguid of the agentcontroller', None)
+        self.dialogAskPassword('password', 'The password of the agentcontroller on the XMPP server', None)
 
-AgentControllerConfig = ItemGroupClass(AgentControllerConfigItem)
-
-
-class StacklessSocketConfigItem(ConfigManagementItem):
-    """
-    Configuration of the StacklessSocket.
-    """
-
-    CONFIGTYPE = "StacklessSocket"
-    DESCRIPTION = "StacklessSocket configuration"
-
-    def ask(self):
-        self.dialogAskString('host', 'The address of the stackless workflow engine', 'localhost')
-        self.dialogAskInteger('port', 'The port of the stackless workflow engine', 9876)
-
-StacklessSocketConfig = ItemGroupClass(StacklessSocketConfigItem)
+WFLConfig = ItemGroupClass(WFLConfigItem)
 
