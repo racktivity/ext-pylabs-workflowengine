@@ -1,4 +1,6 @@
 from pymonkey.InitBaseCore import q, i
+from pymonkey.log.LogTargets import LogTargetFileSystem 
+
 from concurrence import Tasklet, Message, dispatch
 
 from workflowengine.DRPClient import DRPTask
@@ -13,7 +15,10 @@ ConcurrenceSocket.install()
 
 def main():
     try:
+        q.application.appname = "workflowengine"
+        q.logger.addLogTarget(LogTargetFileSystem())        
         q.logger.addLogTarget(WFLJobLogTarget())
+        
         config = i.config.workflowengine.getConfig('main')
         
         socket_task = SocketTask(int(config['port']))
