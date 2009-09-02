@@ -30,7 +30,9 @@ else:
         ActionManager = Dummy
     
     AgentController = Dummy
-    Drp = Dummy
+    
+    from workflowengine.QshellDRPClient import DRPClient
+    Drp = DRPClient
 
 
 class WFLConfigItem(ConfigManagementItem):
