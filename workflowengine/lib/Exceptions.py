@@ -1,5 +1,14 @@
 # IMPORTANT REMARK: in order to get yaml to dump the exceptions, all parameters on the constructor have to be OPTIONAL ! 
 
+class WFLException(Exception):
+    def __init__(self, exception_name, exception_message, stacktrace):
+        self.exception_name = exception_name
+        self.exception_message = exception_message
+        self.stacktrace = stacktrace
+    
+    def __str__(self):
+        return "Exception: %s\nMessage: %s \nStacktrace:\n%s\n" % (self.exception_name, self.exception_message, self.stacktrace)
+
 class JobNotRunningException(Exception):
     def __init__(self, jobguid=None, status=None):
         self.jobguid = jobguid

@@ -1,8 +1,10 @@
+import traceback
+
 from pymonkey import q
 from pymonkey.tasklets import TaskletsEngine
 
 from workflowengine.WFLJob import WFLJob
-from workflowengine.Exceptions import ActionNotFoundException
+from workflowengine.Exceptions import ActionNotFoundException, WFLException
 
 from concurrence import Tasklet, Message
 
@@ -139,7 +141,12 @@ class WFLActionManager():
         #EXECUTE THE TASKLETS
         try:
             self.__taskletEngine.execute(params, tags=tags, path=path)
-        except Exception, e:
+        except WFLException, e:
             MSG_ACTION_EXCEPTION.send(parentTasklet)(e)
+        except Exception, e:
+            exception_name = str(type(exception)).split("'")[1]
+            exception_message = str(e)
+            stacktrace = traceback.format_exc()
+            MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException(exception_name, exception_message, stacktrace))
         else:
             MSG_ACTION_RETURN.send(parentTasklet)()
