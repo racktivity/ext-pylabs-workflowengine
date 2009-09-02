@@ -19,8 +19,10 @@ class SocketTask:
     
     def __init__(self, port):
         self.__server_socket = Socket.new()
+        self.__server_socket.set_reuse_address(1)
         self.__server_socket.bind(('', port))
         self.__server_socket.listen()
+        self.__client_socket = None
         
         self.__receiving_tasklet = None
         self.__sending_tasklet = None
@@ -47,6 +49,10 @@ class SocketTask:
         else:
             MSG_SOCKET_SEND.send(self.__sending_tasklet)(data)
     
+    def stop(self):
+        self.__client_socket and self.__client_socket.close()
+        self.__server_socket and self.__server_socket.close()
+    
     def __serve(self):
         # Started in the receiving tasklet
         while True:
@@ -67,13 +73,9 @@ class SocketTask:
                 if line <> '---':
                     buffer += line + "\n"
                 else:
-                    try:
-                        data = yaml.load(buffer)
-                    except yaml.parser.ParserError:
-                        q.logger.log("[SocketTask] Received bad formatted data: " + str(buffer), 3)
-                    else:
-                        q.logger.log("[SocketTask] Received data: " + str(data), 5)
-                        Tasklet.new(self.__messageHandler)(data)    
+                    data = yaml.load(buffer)
+                    q.logger.log("[SocketTask] Received data: " + str(data), 5)
+                    Tasklet.new(self.__messageHandler)(data)    
                     buffer = ""
                     
         except EOFError:

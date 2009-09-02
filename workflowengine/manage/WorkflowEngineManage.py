@@ -1,4 +1,5 @@
 from pymonkey import q
+import signal
 
 class WorkflowEngineManage:
 
@@ -20,7 +21,7 @@ class WorkflowEngineManage:
         """
         pid = self._getPid(pidFile)
         if self.getStatus(pid=pid) == q.enumerators.AppStatusType.RUNNING:
-            q.system.process.kill(int(pid))
+            q.system.process.kill(int(pid), sig=signal.SIGTERM)
 
 
     def _getPid(self, pidFile = q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine', 'workflowengine.pid')):

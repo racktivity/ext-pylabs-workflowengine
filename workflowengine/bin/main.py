@@ -1,3 +1,6 @@
+from signal import signal, SIGTERM
+from sys import exit
+
 from pymonkey.InitBaseCore import q, i
 from pymonkey.log.LogTargets import LogTargetFileSystem 
 
@@ -14,13 +17,15 @@ ConcurrenceSocket.install()
 
 
 def main():
+    
     try:
+        #INITIALIZE THE APPLICATION
         q.application.appname = "workflowengine"
-        q.logger.addLogTarget(LogTargetFileSystem())        
+        q.logger.addLogTarget(LogTargetFileSystem(maxverbositylevel=5))        
         q.logger.addLogTarget(WFLJobLogTarget())
-        
         config = i.config.workflowengine.getConfig('main')
         
+        #INITIALIZE THE TASKS
         socket_task = SocketTask(int(config['port']))
         def _handle_message(data):
             try:
@@ -32,12 +37,19 @@ def main():
         
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
         ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], config['password'])
-        
     except Exception, e:
         q.logger.log("[SL_WFL] Initialization failed: " + str(e), 1)
         print str(e)
-        quit()
+        exit(-1)
     else:
+        #SETUP THE SIGNAL HANDLER: CLOSE THE SOCKET ON EXIT
+        def sigterm_received():
+            q.logger.log('Received SIGTERM: shutting down.')
+            socket_task.stop()
+            exit(-SIGTERM)
+        signal(SIGTERM, lambda signum, stack_frame: sigterm_received())
+        
+        #START THE TASKS AND REGISTER THEM IN THE Q-TREE
         socket_task.start()
         
         drp_task.start()
@@ -47,7 +59,6 @@ def main():
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
         
         print "Ready !"
-
     
 if __name__=='__main__':
     dispatch(main)
