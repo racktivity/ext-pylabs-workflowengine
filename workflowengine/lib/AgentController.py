@@ -16,6 +16,7 @@ class AgentControllerTask:
     
     def __init__(self, agentcontrollerid, xmppserver, password):
         self.__xmppclient = XMPPClient(agentcontrollerid, xmppserver, password)
+        #TODO should we start the xmppclient here ?
         self.__sending_tasklet = None
         self.__receiving_tasklet = None
         self.__agent_controller = None
@@ -25,7 +26,7 @@ class AgentControllerTask:
         
     def __sender(self):
         # Start the XMPP connection
-        self.__xmppclient.start()
+        self.__xmppclient.start() #TODO Move the init ?
         # Started: start the receiving tasklet
         self.__receiving_tasklet = Tasklet.new(self.__receiver)()
         # Wait for messages for the XMPPClient
@@ -53,7 +54,7 @@ class AgentControllerTask:
             elif element['type'] == 'message':
                 self.__agent_controller and self.__agent_controller._message_received(element['from'], element['message_type'], element['id'], element['message'])
             elif element['type'] == 'disconnected':
-                self.__agent_controller and self.__agent_controller._disconnected()
+                self.__agent_controller and self.__agent_controller._disconnected() 
     
     def connectWFLAgentController(self, wflAgentController):
         self.__agent_controller = AgentController(self.__sending_tasklet)

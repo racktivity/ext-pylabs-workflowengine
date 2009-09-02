@@ -67,9 +67,13 @@ class SocketTask:
                 if line <> '---':
                     buffer += line + "\n"
                 else:
-                    data = yaml.load(buffer)
-                    q.logger.log("[SocketTask] Received data: " + str(data), 5)
-                    Tasklet.new(self.__messageHandler)(data)    
+                    try:
+                        data = yaml.load(buffer)
+                    except yaml.parser.ParserError:
+                        q.logger.log("[SocketTask] Received bad formatted data: " + str(buffer), 3)
+                    else:
+                        q.logger.log("[SocketTask] Received data: " + str(data), 5)
+                        Tasklet.new(self.__messageHandler)(data)    
                     buffer = ""
                     
         except EOFError:

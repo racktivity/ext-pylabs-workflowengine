@@ -18,11 +18,10 @@ class DRPClient():
 class DRPInterface():
     ''' The connectDRPClient function of DRPTask places this interface on the DRPClient for each root object. '''
     
-    def __init__(self, tasklet, name, connection):
+    def __init__(self, tasklet, name):
         self.__drpTasklet = tasklet
         self.__name = name
         
-    #TODO Read the attributes from the connection and add them all
     def get(self, guid, version=None):
         return self.__sendToDrpTasklet('get', guid, version)
     
@@ -82,7 +81,7 @@ class DRPTask:
         from osis import ROOTOBJECT_TYPES as types
         for type in types.itervalues():
             name = getattr(type, 'OSIS_TYPE_NAME', type.__name__.lower())
-            setattr(drpClient, name, DRPInterface(self.__tasklet, name, getattr(self.connection, name)))
+            setattr(drpClient, name, DRPInterface(self.__tasklet, name))
     
     def start(self):
         self.__tasklet = Tasklet.new(self.__run)()
@@ -92,6 +91,7 @@ class DRPTask:
             if msg.match(MSG_DRP_CALL):
                 (caller, rootobject, action) = args[0:3]
                 try:
+                    #If you want to add transaction support, this is the place to be.
                     result = getattr(getattr(self.connection, rootobject), action)(*args[3:], **kwargs)
                 except Exception, e:
                     q.logger.log("[DRPTasklet] Exception occured on DRP action: " + str(e), 1)

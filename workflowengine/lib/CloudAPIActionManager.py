@@ -17,7 +17,7 @@ class WFLActionManager():
         
         self.running = {}
         
-        self.lock = threading.Lock()
+        self.idlock = threading.Lock()
         self.id = 0
 
     def _receivedData(self, data):
@@ -38,10 +38,10 @@ class WFLActionManager():
         Send the root object action to the stackless workflowengine over a socket.
         The root object action will wait until the workflowengine returns a result.
         """
-        self.lock.acquire()
+        self.idlock.acquire()
         my_id = self.id
         self.id += 1
-        self.lock.release()
+        self.idlock.release()
         
         my_lock = threading.Lock()
         self.running[my_id] = {'lock': my_lock}
@@ -64,20 +64,22 @@ class ActionUnavailableException(Exception):
 
 
 class YamlProtocol(protocol.Protocol):
-    lock = threading.Lock()
+    writelock = threading.Lock()
     
     def connectionMade(self):
         self.factory.instance = self
 
     def dataReceived(self, data):
-        print "Received something"
         if self.factory.receivedCallback:
             messages = data.split("\n---\n")
             for message in messages:
                 if message:
-                    print message
-                    retdata = yaml.load(message)
-                    self.factory.receivedCallback(retdata)
+                    try:
+                        retdata = yaml.load(message)
+                    except yaml.parser.ParserError:
+                        q.logger.log("[WFLActionManager] Socket received invalid message: " + str(message), 3)
+                    else:
+                        self.factory.receivedCallback(retdata)
     
     def connectionLost(self, reason):
         self.factory.instance = None
@@ -85,9 +87,9 @@ class YamlProtocol(protocol.Protocol):
     def sendData(self, data):
         message = yaml.dump(data)
         message += "\n---\n"
-        self.lock.acquire()
+        self.writelock.acquire()
         self.transport.write(message)
-        self.lock.release()
+        self.writelock.release()
 
 class YamlClientFactory(protocol.ReconnectingClientFactory):
     protocol = YamlProtocol
