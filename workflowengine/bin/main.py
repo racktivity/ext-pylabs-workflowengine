@@ -10,39 +10,6 @@ from workflowengine.WFLJob import WFLJob
 import workflowengine.ConcurrenceSocket as ConcurrenceSocket
 ConcurrenceSocket.install()
 
-def testDrpTasklet(num):
-    job1 = q.drp.job.new()
-    job1.name = "testen"
-    q.drp.job.save(job1)
-    print str(num) + ": JobGUID1 = " + job1.guid
-    
-    job2 = q.drp.job.new()
-    job2.name = "testen"
-    job2.parentjobguid = job1.guid
-    job2.order = 5
-    q.drp.job.save(job2)
-    print str(num) + ": JobGUID2 = " + job2.guid
-    
-    WFLJob.printJobTree(job2.guid)
-    print "Next Child: " + str(WFLJob.getNextChildOrder(job2.guid))
-    
-def nonBlockingChecker():
-    while True:
-        print "."
-        Tasklet.sleep(0.1)
-
-def testing():
-    Tasklet.sleep(3)
-    ret = q.workflowengine.actionmanager.startRootobjectAction("ro_test", "test", {'num':10})
-    print ret['result']
-    WFLJob.printJobTree(ret['jobguid'])
-    
-    #job = q.drp.job.new()
-    #q.drp.job.save(job)
-    #Tasklet.sleep(3)
-    #ret = q.workflowengine.agentcontroller.executeActorActionScript('agent1', 'aa_test', 'test', 'test_agent', {'input':'hello'}, job.guid)
-    #print str(ret)
-
 
 def main():
     try:
@@ -75,10 +42,7 @@ def main():
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
         
         print "Ready !"
-        #test_task = Tasklet.new(testing)()
-        
-        #test_task = Tasklet.new(testDrpTasklet)(1)
-        #checker_task = Tasklet.new(nonBlockingChecker)()
+
     
 if __name__=='__main__':
     dispatch(main)

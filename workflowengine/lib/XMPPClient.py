@@ -234,7 +234,7 @@ class XMPPStream:
     def write_presence(self, to, type):
         attribs={}
         if to <> None: attribs['to'] =  escapeToXml(to, isattrib=1)
-        if type <> None: attribs['type'] = excapeToXml(type, isattrib=1)
+        if type <> None: attribs['type'] = escapeToXml(type, isattrib=1)
         presence = Element("presence", attribs)
         self.__write_bytes(tostring(presence))
 
