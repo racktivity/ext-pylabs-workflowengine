@@ -5,6 +5,7 @@ from signal import signal, SIGTERM
 from sys import exit
 
 from pymonkey.InitBaseCore import q, i
+from pymonkey.tasklets import TaskletsEngine
 from pymonkey.log.LogTargets import LogTargetFileSystem 
 
 from concurrence import Tasklet, Message, dispatch
@@ -19,7 +20,6 @@ from workflowengine.Exceptions import WFLException
 import workflowengine.ConcurrenceSocket as ConcurrenceSocket
 ConcurrenceSocket.install()
 
-
 def main():
     
     try:
@@ -28,6 +28,7 @@ def main():
         q.logger.addLogTarget(LogTargetFileSystem(maxverbositylevel=5))        
         q.logger.addLogTarget(WFLJobLogTarget())
         config = i.config.workflowengine.getConfig('main')
+        q.workflowengine.actionmanager.init()
         
         #INITIALIZE THE TASKS
         socket_task = SocketTask(int(config['port']))

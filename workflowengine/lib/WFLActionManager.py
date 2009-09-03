@@ -33,6 +33,12 @@ class WFLActionManager():
         self.__taskletEngine.addFromPath(ActorActionTaskletPath)
         self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
     
+    def init(self):
+        '''
+        Does nothing: used to force pymonkey to create the q-tree mapping and initialize the taskletengine.
+        '''
+        pass
+    
     def startActorAction(self, actorname, actionname, params, executionparams={}, jobguid=None):
         """
         Starts a given Actor Action. Uses the tasklet engine to run the matching tasklets.

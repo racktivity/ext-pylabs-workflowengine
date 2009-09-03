@@ -8,6 +8,9 @@ from osis.store.OsisFilterObject import OsisFilterObject
 
 from concurrence import Tasklet, Message
 
+from workflowengine.Exceptions import WFLException
+
+
 class MSG_DRP_CALL(Message): pass
 class MSG_DRP_RETURN(Message): pass
 class MSG_DRP_EXCEPTION(Message): pass
@@ -99,6 +102,6 @@ class DRPTask:
                     result = getattr(getattr(self.connection, rootobject), action)(*args[3:], **kwargs)
                 except Exception, e:
                     q.logger.log("[DRPTasklet] Exception occured on DRP action: " + str(e), 1)
-                    MSG_DRP_EXCEPTION.send(caller)(e)
+                    MSG_DRP_EXCEPTION.send(caller)(WFLException.create(e))
                 else:
                     MSG_DRP_RETURN.send(caller)(result)
