@@ -23,6 +23,14 @@ class WorkflowEngineManage:
         if self.getStatus(pid=pid) == q.enumerators.AppStatusType.RUNNING:
             q.system.process.kill(int(pid), sig=signal.SIGTERM)
 
+    def kill(self, pidFile=q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine', 'workflowengine.pid')):
+        """
+        Stop workflow engine
+        @param pidFile: file path to retrieve the pid
+        """
+        pid = self._getPid(pidFile)
+        if self.getStatus(pid=pid) == q.enumerators.AppStatusType.RUNNING:
+            q.system.process.kill(int(pid))
 
     def _getPid(self, pidFile = q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine', 'workflowengine.pid')):
         """
