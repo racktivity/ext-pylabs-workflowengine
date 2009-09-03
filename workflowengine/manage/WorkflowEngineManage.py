@@ -32,6 +32,7 @@ class WorkflowEngineManage:
             while self.getStatus() == q.enumerators.AppStatusType.RUNNING:
                 if i > 0:
                     print "   Still running, waiting %i seconds..." % i
+                    i -= 1
                     time.sleep(1)
                 else:
                     print "Could not stop the workflowengine. Next step: kill it !"
@@ -40,6 +41,14 @@ class WorkflowEngineManage:
             print "Stopped the workflowengine."
         else:
             print "The workflowengine is not running."
+
+    def restart(self, pidFile=q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine', 'workflowengine.pid')):
+        """
+        Restart workflow engine
+        @param pidFile: file path to retrieve the pid
+        """
+        self.stop(pidFile)
+        self.start(pidFile)
 
     def kill(self, pidFile=q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine', 'workflowengine.pid')):
         """
