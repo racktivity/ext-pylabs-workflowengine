@@ -50,6 +50,7 @@ class SocketTask:
             MSG_SOCKET_SEND.send(self.__sending_tasklet)(data)
     
     def stop(self):
+        self.__stream and self.__stream.close()
         self.__client_socket and self.__client_socket.close()
         self.__server_socket and self.__server_socket.close()
     

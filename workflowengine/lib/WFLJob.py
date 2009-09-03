@@ -153,9 +153,9 @@ class WFLJob:
         view = q.drp.job.findAsView(filterObj, 'view_job_parentlist')
         #TODO remove the check if OSIS is fixed
         if view == False:
-            return 0
+            return 1
         else:
-            highestOrder = -1
+            highestOrder = 0
             for jobobj in view:
                 if jobobj['joborder'] > highestOrder:
                     highestOrder = jobobj['joborder']
