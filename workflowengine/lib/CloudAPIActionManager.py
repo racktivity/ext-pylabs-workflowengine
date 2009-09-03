@@ -1,4 +1,4 @@
-import yaml, threading
+import yaml, threading, time
 from twisted.internet import protocol, reactor
 
 from pymonkey import q, i
@@ -95,12 +95,32 @@ class YamlClientFactory(protocol.ReconnectingClientFactory):
     protocol = YamlProtocol
     instance = None
     
-    maxDelay = 30
+    maxDelay = 30 # If the connection is lost, the factory will try to reconnect: the max delay between reconnects.
+
+    timeout = 5 # sendData waits a number of seconds before raising the not connected exception.
+    sleepBetweenChecks = 0.5 # sendData will try to sleep a number of seconds between each check.
+    maxAttempts = timeout/sleepBetweenChecks
     
     def __init__(self, receivedCallback):
         self.receivedCallback = receivedCallback
     
     def sendData(self, data):
+        # If a request for sendData is received: reset the reconnect timeout and retry 
+        if self.connector and self.connector.state == 'disconnected':
+            self.stopTrying()
+            self.resetDelay()
+            self.retry()
+        
+        # Let the sendData sleep if there is no connection.
+        attempt = 0
+        while not (self.connector and self.connector.state == 'connected'):
+            if attempt == self.maxAttempts:
+                break
+            else:
+                time.sleep(self.sleepBetweenChecks)
+                attempt += 1
+        
+        # Either the connection is made or the timeout is reached.
         if self.instance == None:
             raise Exception('Not connected to the stackless WFL.')
         else:
