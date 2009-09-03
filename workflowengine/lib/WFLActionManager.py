@@ -141,12 +141,7 @@ class WFLActionManager():
         #EXECUTE THE TASKLETS
         try:
             self.__taskletEngine.execute(params, tags=tags, path=path)
-        except WFLException, e:
-            MSG_ACTION_EXCEPTION.send(parentTasklet)(e)
         except Exception, e:
-            exception_name = str(type(e)).split("'")[1]
-            exception_message = str(e)
-            stacktrace = traceback.format_exc()
-            MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException(exception_name, exception_message, stacktrace))
+            MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e))
         else:
             MSG_ACTION_RETURN.send(parentTasklet)()

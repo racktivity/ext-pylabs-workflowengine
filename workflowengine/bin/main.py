@@ -14,6 +14,7 @@ from workflowengine.SocketServer import SocketTask
 from workflowengine.AgentController import AgentControllerTask 
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.WFLJob import WFLJob
+from workflowengine.Exceptions import WFLException
 
 import workflowengine.ConcurrenceSocket as ConcurrenceSocket
 ConcurrenceSocket.install()
@@ -35,7 +36,7 @@ def main():
                 ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
                 socket_task.sendData({'id':data['id'], 'error':False, 'return':ret})
             except Exception, e:
-                socket_task.sendData({'id':data['id'], 'error':True, 'exception':e})
+                socket_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
         socket_task.setMessageHandler(_handle_message)
         
         drp_task = DRPTask(config['osis_address'], config['osis_service'])

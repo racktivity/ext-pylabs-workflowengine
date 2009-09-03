@@ -1,10 +1,21 @@
 # IMPORTANT REMARK: in order to get yaml to dump the exceptions, all parameters on the constructor have to be OPTIONAL ! 
+import traceback
 
 class WFLException(Exception):
     def __init__(self, exception_name=None, exception_message=None, stacktrace=None):
         self.exception_name = exception_name
         self.exception_message = exception_message
         self.stacktrace = stacktrace
+    
+    @classmethod
+    def create(cls, exception):
+        if isinstance(exception, WFLException):
+            return exception
+        else:
+            exception_name = str(type(exception)).split("'")[1]
+            exception_message = str(exception)
+            stacktrace = traceback.format_exc()
+            return WFLException(exception_name, exception_message, stacktrace)
     
     def __str__(self):
         return "Exception: %s\nMessage: %s \nStacktrace:\n%s\n" % (self.exception_name, self.exception_message, self.stacktrace)
