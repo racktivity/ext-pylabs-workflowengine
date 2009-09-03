@@ -144,7 +144,7 @@ class WFLActionManager():
         except WFLException, e:
             MSG_ACTION_EXCEPTION.send(parentTasklet)(e)
         except Exception, e:
-            exception_name = str(type(exception)).split("'")[1]
+            exception_name = str(type(e)).split("'")[1]
             exception_message = str(e)
             stacktrace = traceback.format_exc()
             MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException(exception_name, exception_message, stacktrace))

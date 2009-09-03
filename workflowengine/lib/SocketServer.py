@@ -51,7 +51,6 @@ class SocketTask:
     
     def stop(self):
         self.__stream and self.__stream.close()
-        self.__client_socket and self.__client_socket.close()
         self.__server_socket and self.__server_socket.close()
     
     def __serve(self):
@@ -94,10 +93,13 @@ class SocketTask:
         
         for msg, args, kwargs in Tasklet.receive():
             if msg.match(MSG_SOCKET_SEND):
-                message = yaml.dump(args[0]) + "\n---\n"
+                message = self.__yaml_message(args[0]) 
                 q.logger.log("[SocketTask] Sending message: " + message, 5)
                 writer.write_bytes(message)
                 writer.flush()
             elif msg.match(MSG_SOCKET_CLOSE):
                 return
+    
+    def __yaml_message(self, dict):
+        return yaml.dump(dict) + "\n---\n"
     

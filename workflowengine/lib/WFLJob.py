@@ -130,9 +130,6 @@ class WFLJob:
         filterObj.add('view_job_parentlist', 'parentjobguid', parentjobguid)
         
         childrenguids = q.drp.job.find(filterObj)
-        #TODO remove the check if OSIS is fixed
-        if childrenguids == [[],[]]:
-            childrenguids = []
         childrenguids = set(childrenguids)
         
         return map(lambda x: q.drp.job.get(x), childrenguids)
@@ -151,13 +148,9 @@ class WFLJob:
         filterObj.add('view_job_parentlist', 'parentjobguid', parentjobguid)
         
         view = q.drp.job.findAsView(filterObj, 'view_job_parentlist')
-        #TODO remove the check if OSIS is fixed
-        if view == False:
-            return 1
-        else:
-            highestOrder = 0
-            for jobobj in view:
-                if jobobj['joborder'] > highestOrder:
-                    highestOrder = jobobj['joborder']
-            return highestOrder + 1
+        highestOrder = -1
+        for jobobj in view:
+            if jobobj['joborder'] > highestOrder:
+                highestOrder = jobobj['joborder']
+        return highestOrder + 1
 

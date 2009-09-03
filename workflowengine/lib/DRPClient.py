@@ -90,6 +90,7 @@ class DRPTask:
         for msg, args, kwargs in Tasklet.receive():
             if msg.match(MSG_DRP_CALL):
                 (caller, rootobject, action) = args[0:3]
+                q.logger.log("[DRPTasklet] Received task: ro=" + str(rootobject) + " action=" + str(action), 5)
                 try:
                     #If you want to add transaction support, this is the place to be.
                     result = getattr(getattr(self.connection, rootobject), action)(*args[3:], **kwargs)
