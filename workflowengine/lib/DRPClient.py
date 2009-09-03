@@ -40,6 +40,9 @@ class DRPInterface():
     def query(self, query):
         return self.__sendToDrpTasklet('query', query)
 
+    def delete(self, guid, version=None):
+        return self.__sendToDrpTasklet('delete', guid, version)
+
     @staticmethod
     def getFilterObject():
         return OsisFilterObject()
