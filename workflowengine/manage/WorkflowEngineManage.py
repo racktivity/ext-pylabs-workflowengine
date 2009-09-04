@@ -4,6 +4,7 @@ import signal, time
 class WorkflowEngineManage:
     stacklessBin = q.system.fs.joinPaths(q.dirs.baseDir, 'bin', 'stackless')
     workflowengineBin = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','bin', 'main.py') 
+    workflowengineProcess = '%s %s'%(stacklessBin, workflowengineBin)
     
     pidFile = q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine.pid')
     stdoutFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.stdout')
@@ -21,23 +22,26 @@ class WorkflowEngineManage:
         else:
             port = int(i.config.workflowengine.getConfig('main')['port'])
             if q.system.process.getProcessByPort(port) <> None:
-                print "Cannot start the workflowengine.\nAnother process is holding port %i: %s.\nUse q.system.process.kill() to kill it." % ( port, str(q.system.process.getProcessByPort(i.config.workflowengine.getConfig('main')['port'])))
+                print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(i.config.workflowengine.getConfig('main')['port'])))
             else:
-                print "Starting the workflowengine."
-                for file in [self.pidFile, self.stdoutFile, self.stderrFile, self.initSuccessFile, self.initFailedFile]:
-                    if q.system.fs.exists(file): q.system.fs.remove(file)
-                pid = q.system.process.runDaemon('%s %s'%(self.stacklessBin, self.workflowengineBin), stdout=self.stdoutFile,  stderr=self.stderrFile)
-                q.system.fs.writeFile(self.pidFile, str(pid))
-                
-                print " Waiting for initialization"
-                while not (q.system.fs.exists(self.initSuccessFile) or q.system.fs.exists(self.initFailedFile)):
-                    time.sleep(0.5)
-                
-                if q.system.fs.exists(self.initSuccessFile):
-                    print "Workflowengine started"
+                if q.system.process.checkProcess(self.workflowengineProcess) == 0:
+                    print "Cannot start the workflowengine: an other instance of the workflowengine is running."
                 else:
-                    print "INITIALIZATION FAILED, WORKFLOWENGINE NOT STARTED !"
-                    print "  " + q.system.fs.fileGetContents(self.stderrFile).replace("\n", "\n  ")
+                    print "Starting the workflowengine."
+                    for file in [self.pidFile, self.stdoutFile, self.stderrFile, self.initSuccessFile, self.initFailedFile]:
+                        if q.system.fs.exists(file): q.system.fs.remove(file)
+                    pid = q.system.process.runDaemon(self.workflowengineProcess, stdout=self.stdoutFile,  stderr=self.stderrFile)
+                    q.system.fs.writeFile(self.pidFile, str(pid))
+                    
+                    print " Waiting for initialization"
+                    while not (q.system.fs.exists(self.initSuccessFile) or q.system.fs.exists(self.initFailedFile)):
+                        time.sleep(0.5)
+                    
+                    if q.system.fs.exists(self.initSuccessFile):
+                        print "Workflowengine started"
+                    else:
+                        print "INITIALIZATION FAILED, WORKFLOWENGINE NOT STARTED !"
+                        print "  " + q.system.fs.fileGetContents(self.stderrFile).replace("\n", "\n  ")
 
     def stop(self):
         """
