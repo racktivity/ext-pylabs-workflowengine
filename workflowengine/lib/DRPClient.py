@@ -16,7 +16,10 @@ class MSG_DRP_RETURN(Message): pass
 class MSG_DRP_EXCEPTION(Message): pass
         
 class DRPClient():
-    ''' A dummy DRPClient, the connectDRPClient of DRPTask can be used to initialize the client. '''
+    '''
+    A dummy DRPClient, the connectDRPClient of DRPTask can be used to initialize the client.
+    No interface is provided here: the root objects are read from the OSIS connection, which is not available at this time.
+    '''
 
 class DRPInterface():
     ''' The connectDRPClient function of DRPTask places this interface on the DRPClient for each root object. '''

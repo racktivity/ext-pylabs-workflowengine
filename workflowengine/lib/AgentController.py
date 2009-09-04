@@ -16,7 +16,6 @@ class AgentControllerTask:
     
     def __init__(self, agentcontrollerid, xmppserver, password):
         self.__xmppclient = XMPPClient(agentcontrollerid, xmppserver, password)
-        #TODO should we start the xmppclient here ?
         self.__sending_tasklet = None
         self.__receiving_tasklet = None
         self.__agent_controller = None
@@ -25,8 +24,8 @@ class AgentControllerTask:
         self.__sending_tasklet = Tasklet.new(self.__sender)()
         
     def __sender(self):
-        # Start the XMPP connection
-        self.__xmppclient.start() #TODO Move the init ?
+        # Start the xmppclient: not done during initialization because failed connection would block initialization
+        self.__xmppclient.start()
         # Started: start the receiving tasklet
         self.__receiving_tasklet = Tasklet.new(self.__receiver)()
         # Wait for messages for the XMPPClient
@@ -89,7 +88,7 @@ class AgentController:
         file.close()
         
         yaml_message = yaml.dump({'params':params, 'script':script})
-        self.__jobQueue.start(jobguid, agentguid, params, logger)
+        self.__jobQueue.start(jobguid, agentguid, params, logger, scriptpath)
         self.__sendMessage(agentguid, 'start', jobguid, yaml_message)
         return self.__waitForScript(agentguid, jobguid, timeout)
         
@@ -194,7 +193,7 @@ class AgentController:
 
 
 class ACJob:
-    def __init__(self, agentguid, running, failed, params, logger, tasklet):
+    def __init__(self, agentguid, running, failed, params, logger, tasklet, scriptpath):
         self.agentguid = agentguid
         self.running = running
         self.failed = failed
@@ -203,6 +202,7 @@ class ACJob:
         self.tasklet = tasklet
         self.errorcode = 0
         self.erroroutput = None
+        self.scriptpath = scriptpath
 
 class JobQueue:
     
@@ -210,11 +210,11 @@ class JobQueue:
         # Queue is dict sorted by jobguids
         self.queue = {}
 
-    def start(self, jobguid, agentguid, params, logger):
+    def start(self, jobguid, agentguid, params, logger, scriptpath):
         if jobguid in self.queue:
             raise Exception('Jobguid already in queue ' + str(jobguid))
         else:
-            self.queue[jobguid] = ACJob(agentguid, True, False, params, logger, Tasklet.current())
+            self.queue[jobguid] = ACJob(agentguid, True, False, params, logger, Tasklet.current(), scriptpath)
     
     def done(self, jobguid, agentguid, return_params):
         if self.__checkJob(jobguid, agentguid):
@@ -240,7 +240,8 @@ class JobQueue:
             if timeout: timeoutTasklet.jobdone = True
             return
         elif msg.match(MSG_JOB_TIMEOUT):
-            raise TimeOutException()
+            job = self.queue[jobguid]
+            raise TimeOutException(jobguid=jobguid, agentguid=job.agentguid, scriptpath=job.scriptpath, timeout=timeout)
     
     def __timeout_tasklet(self, caller, timeout):
         Tasklet.sleep(timeout)

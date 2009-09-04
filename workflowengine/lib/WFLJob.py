@@ -48,7 +48,7 @@ class WFLJob:
         self.job.agentguid = agentguid
         
         fillInExecutionparams(self.job, executionparams)
-        self.wait = executionparams.get('wait')
+        self.wait = True if executionparams.get('wait') is None else executionparams.get('wait')
         self.timetostart = executionparams.get('timetostart')
         self.priority = executionparams.get('priority')
         
