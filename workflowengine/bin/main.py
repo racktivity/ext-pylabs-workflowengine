@@ -1,8 +1,6 @@
-import sys
-sys.path = ['', '/opt/qbase3/lib/python25.zip', '/opt/qbase3/lib/python2.5', '/opt/qbase3/lib/python2.5/plat-linux2', '/opt/qbase3/lib/python2.5/lib-tk', '/opt/qbase3/lib/python2.5/lib-dynload', '/opt/qbase3/lib/python2.5/site-packages', '/opt/qbase3/lib/python/site-packages', '/opt/qbase3/lib/pymonkey/core', '/opt/qbase3/lib/pymonkey/core/PyMonkey-4.0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/osis-0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/configobj-4.5.3-py2.5.egg', '/opt/qbase3/lib/python2.5/site-packages/concurrence-0.3.1-py2.5-linux-i686.egg']
-
+import sys, traceback
 from signal import signal, SIGTERM
-from sys import exit
+sys.path = ['', '/opt/qbase3/lib/python25.zip', '/opt/qbase3/lib/python2.5', '/opt/qbase3/lib/python2.5/plat-linux2', '/opt/qbase3/lib/python2.5/lib-tk', '/opt/qbase3/lib/python2.5/lib-dynload', '/opt/qbase3/lib/python2.5/site-packages', '/opt/qbase3/lib/python/site-packages', '/opt/qbase3/lib/pymonkey/core', '/opt/qbase3/lib/pymonkey/core/PyMonkey-4.0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/osis-0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/configobj-4.5.3-py2.5.egg', '/opt/qbase3/lib/python2.5/site-packages/concurrence-0.3.1-py2.5-linux-i686.egg']
 
 from pymonkey.InitBaseCore import q, i
 from pymonkey.tasklets import TaskletsEngine
@@ -20,6 +18,12 @@ from workflowengine.Exceptions import WFLException
 import workflowengine.ConcurrenceSocket as ConcurrenceSocket
 ConcurrenceSocket.install()
 
+initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initSuccess')
+initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
+
+#LOAD THE TASKLETS OUTSIDE THE DISPATCH: 10 TIMES FASTER.
+q.workflowengine.actionmanager.init()
+
 def main():
     
     try:
@@ -28,7 +32,6 @@ def main():
         q.logger.addLogTarget(LogTargetFileSystem(maxverbositylevel=5))        
         q.logger.addLogTarget(WFLJobLogTarget())
         config = i.config.workflowengine.getConfig('main')
-        q.workflowengine.actionmanager.init()
         
         #INITIALIZE THE TASKS
         socket_task = SocketTask(int(config['port']))
@@ -44,14 +47,17 @@ def main():
         ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], config['password'])
     except Exception, e:
         q.logger.log("[SL_WFL] Initialization failed: " + str(e), 1)
-        print str(e)
-        exit(-1)
+        traceback.print_exc()
+        q.system.fs.createEmptyFile(initFailedFile)
+        sys.exit(-1)
     else:
+        q.system.fs.createEmptyFile(initSuccessFile)
+        
         #SETUP THE SIGNAL HANDLER: CLOSE THE SOCKET ON EXIT
         def sigterm_received():
             q.logger.log('Received SIGTERM: shutting down.')
             socket_task.stop()
-            exit(-SIGTERM)
+            sys.exit(-SIGTERM)
         signal(SIGTERM, lambda signum, stack_frame: sigterm_received())
         
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
