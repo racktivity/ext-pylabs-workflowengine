@@ -113,7 +113,7 @@ class YamlClientFactory(protocol.ReconnectingClientFactory):
         
         # Let the sendData sleep if there is no connection.
         attempt = 0
-        while not (self.connector and self.connector.state == 'connected'):
+        while not self.instance:
             if attempt == self.maxAttempts:
                 break
             else:
