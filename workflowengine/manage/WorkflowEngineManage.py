@@ -34,7 +34,7 @@ class WorkflowEngineManage:
                     q.system.fs.writeFile(self.pidFile, str(pid))
                     
                     print " Waiting for initialization"
-                    while not (q.system.fs.exists(self.initSuccessFile) or q.system.fs.exists(self.initFailedFile)):
+                    while not (q.system.fs.exists(self.initSuccessFile) or q.system.fs.exists(self.initFailedFile)) and q.system.process.checkProcess(self.workflowengineProcess) == 0:
                         time.sleep(0.5)
                     
                     if q.system.fs.exists(self.initSuccessFile):
