@@ -30,8 +30,8 @@ class WFLActionManager():
     def __init__(self):
         self.__taskletEngine = TaskletsEngine()
         ##create tasklets dir if it doesnt exist
-        if not q.system.fs.exists(ActionManagerTaskletPath):
-            q.system.fs.createDir(ActionManagerTaskletPath)
+        if not q.system.fs.exists(ActorActionTaskletPath):
+            q.system.fs.createDir(ActorActionTaskletPath)
         self.__taskletEngine.addFromPath(ActorActionTaskletPath)
         if not q.system.fs.exists(RootobjectActionTaskletPath):
             q.system.fs.createDir(RootobjectActionTaskletPath)
