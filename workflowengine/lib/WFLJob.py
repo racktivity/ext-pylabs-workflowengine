@@ -84,7 +84,10 @@ class WFLJob:
         @param source:            The source of the log message, eg: an agent.
         """
         if '|' in logmessage: logmessage = logmessage.replace('|', '/')
+        if '\n' in logmessage: logmessage = logmessage.replace('\n', ' ')
+        
         if '|' in source: source = source.replace('|', '/')
+        if '\n' in source: source = source.replace('\n', ' ')
         
         epoch = getUnixTimestamp()
         logentry = createLogEntry(epoch, level, source, logmessage)
