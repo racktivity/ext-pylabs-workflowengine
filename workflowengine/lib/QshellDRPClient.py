@@ -15,9 +15,9 @@ class DRPClient():
     
     def __init__(self):
         self.__dict__ = self.__shared_state
-        if not hasattr(self, 'inited'):
+        if not hasattr(self, 'initialized'):
             self.__initialize()
-            setattr(self, 'inited', True)
+            setattr(self, 'initialized', True)
     
     def __initialize(self):
         try:
