@@ -20,10 +20,7 @@ class DRPClient():
             setattr(self, 'initialized', True)
     
     def __initialize(self):
-        try:
-            init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
-        except AssertionError:
-            pass #OSIS already initialized
+        init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
         
         try:
             self.__connection = OsisConnection(XMLRPCTransport('http://localhost:8888', 'osis_service'), ThriftSerializer)

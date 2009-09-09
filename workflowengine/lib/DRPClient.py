@@ -65,10 +65,7 @@ class DRPInterface():
 class DRPTask:
     
     def __init__(self, address, service):
-        try:
-            init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
-        except AssertionError:
-            pass #OSIS already initialized
+        init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
         
         try:
             self.connection = OsisConnection(XMLRPCTransport(address, service), ThriftSerializer)
