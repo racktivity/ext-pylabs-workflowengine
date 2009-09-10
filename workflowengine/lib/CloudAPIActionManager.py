@@ -65,19 +65,25 @@ class ActionUnavailableException(Exception):
 
 class YamlProtocol(protocol.Protocol):
     writelock = threading.Lock()
+    delimiter = "\n---\n"
+    buffer = ""
+    
     
     def connectionMade(self):
         self.factory.instance = self
 
     def dataReceived(self, data):
         if self.factory.receivedCallback:
-            messages = data.split("\n---\n")
-            for message in messages:
+            self.buffer = self.buffer + data
+            while self.delimiter in self.buffer:
+                delimiter_index = self.buffer.find(self.delimiter)
+                message = self.buffer[:delimiter_index]
+                self.buffer = self.buffer[delimiter_index+len(self.delimiter):]
                 if message:
                     try:
                         retdata = yaml.load(message)
                     except yaml.parser.ParserError:
-                        q.logger.log("[WFLActionManager] Socket received invalid message: " + str(message), 3)
+                        q.logger.log("[CLOUDAPIActionManager] Socket received invalid message: " + str(message), 3)
                     else:
                         self.factory.receivedCallback(retdata)
     
