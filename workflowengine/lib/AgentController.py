@@ -2,7 +2,7 @@ from pymonkey import q
 import yaml
 from concurrence import Tasklet, Message
 from workflowengine.XMPPClient import XMPPClient
-from workflowengine.Exceptions import AgentNotAvailableException, TimeOutException
+from workflowengine.Exceptions import AgentNotAvailableException, TimeOutException, ScriptFailedException
 
 class MSG_XMPP_SEND_MESSAGE(Message): pass
 class MSG_XMPP_SEND_PRESENCE(Message): pass
@@ -67,12 +67,9 @@ class AgentController:
         self.__presenceList = PrecenseList()
         self.__jobQueue = JobQueue()
     
-    def executeScript(self, agentguid, jobguid, scriptpath, params, timeout, logger):
+    def executeScript(self, agentguid, jobguid, scriptpath, params):
         '''
         Execute a script with a set of params on a certain agent and wait for an answer from the agent.
-        
-        @param timeout: the number of seconds to wait before raising a TimeOutException
-        @param logger: the function that will be called for logging. Attributes should be: (logmessage[, level][, source]).
         
         @raise IOError: if the scriptpath can't be read
         @raise TimeOutException: if the agent doesn't respond within the timeout
@@ -87,8 +84,10 @@ class AgentController:
         script = file.read()
         file.close()
         
+        timeout = q.workflowengine.jobmanager.getMaxduration(jobguid)
+        
         yaml_message = yaml.dump({'params':params, 'script':script})
-        self.__jobQueue.start(jobguid, agentguid, params, logger, scriptpath)
+        self.__jobQueue.start(jobguid, agentguid, params, scriptpath)
         self.__sendMessage(agentguid, 'start', jobguid, yaml_message)
         return self.__waitForScript(agentguid, jobguid, timeout)
         
@@ -143,9 +142,11 @@ class AgentController:
         except TimeOutException:
             raise
         else:
-            ret = self.__jobQueue.getJobInfo(jobguid)
-            self.__jobQueue.removeJob(jobguid)
-            return ret
+            acjob = self.__jobQueue.removeJob(jobguid)
+            if acjob.failed is True:
+                raise ScriptFailedException(jobguid, agentguid, acjob.scriptpath, acjob.errorcode, acjob.erroroutput)
+            else:
+                return acjob.params
     
     def _presence_received(self, agentguid, type):
         if type == 'available':
@@ -169,12 +170,8 @@ class AgentController:
             erroroutput = return_object['erroroutput']
             self.__jobQueue.died(jobguid, agentguid, errorcode, erroroutput)
         elif type == 'agent_log':
-            message_ojbect = yaml.load(message)
-            self._log_external(agentguid, jobguid, message_ojbect['level'], message_ojbect['message'])
-    
-    def _log_external(self, agentguid, jobguid, level, message):
-        q.logger.log("[AGENTCONTROLLER] Log from agent '" + agentguid + "' for job '" + jobguid + "' with level '" + str(level) + "' : " + message, 6)
-        self.__jobQueue.getLogger(jobguid)(message.encode(), level=level, source=agentguid.encode())
+            message_object = yaml.load(message)
+            q.workflowengine.jobmanager.appendJobLog(jobguid, message_object['message'].encode(), message_object['level'], agentguid.encode())
 
     def _disconnected(self):
         self.__presenceList.clear()
@@ -193,12 +190,11 @@ class AgentController:
 
 
 class ACJob:
-    def __init__(self, agentguid, running, failed, params, logger, tasklet, scriptpath):
+    def __init__(self, agentguid, running, failed, params, tasklet, scriptpath):
         self.agentguid = agentguid
         self.running = running
         self.failed = failed
         self.params = params
-        self.logger = logger
         self.tasklet = tasklet
         self.errorcode = 0
         self.erroroutput = None
@@ -210,11 +206,11 @@ class JobQueue:
         # Queue is dict sorted by jobguids
         self.queue = {}
 
-    def start(self, jobguid, agentguid, params, logger, scriptpath):
+    def start(self, jobguid, agentguid, params, scriptpath):
         if jobguid in self.queue:
             raise Exception('Jobguid already in queue ' + str(jobguid))
         else:
-            self.queue[jobguid] = ACJob(agentguid, True, False, params, logger, Tasklet.current(), scriptpath)
+            self.queue[jobguid] = ACJob(agentguid, True, False, params, Tasklet.current(), scriptpath)
     
     def done(self, jobguid, agentguid, return_params):
         if self.__checkJob(jobguid, agentguid):
@@ -247,17 +243,6 @@ class JobQueue:
         Tasklet.sleep(timeout)
         if not hasattr(Tasklet.current(), 'jobdone'):
             MSG_JOB_TIMEOUT.send(caller)()
-    
-    def getJobInfo(self, jobguid):
-        acjob = self.queue[jobguid]
-        ret = {'params' : acjob.params, 'error' : acjob.failed}
-        if acjob.failed:
-            ret['errorcode'] = acjob.errorcode
-            ret['erroroutput'] = acjob.erroroutput
-        return ret
-    
-    def getLogger(self, jobguid):
-        return self.queue[jobguid].logger
     
     def removeJob(self, jobguid):
         return self.queue.pop(jobguid)

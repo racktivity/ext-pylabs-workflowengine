@@ -15,7 +15,6 @@ from workflowengine.DRPClient import DRPTask
 from workflowengine.SocketServer import SocketTask
 from workflowengine.AgentController import AgentControllerTask 
 from workflowengine.WFLLogTargets import WFLJobLogTarget
-from workflowengine.WFLJob import WFLJob
 from workflowengine.Exceptions import WFLException
 
 import workflowengine.ConcurrenceSocket as ConcurrenceSocket

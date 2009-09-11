@@ -17,6 +17,15 @@ class WFLException(Exception):
             stacktrace = traceback.format_exc()
             return WFLException(exception_name, exception_message, stacktrace)
     
+    @classmethod
+    def createCombo(cls, exceptions):
+        exception_name = "Combo exception"
+        exception_message = "Multiple exceptions occurred"
+        stacktrace = ""
+        for exception in exceptions:
+            stacktrace += str(WFLException.create(exception)) + "\n"
+        return WFLException(exception_name, exception_message, stacktrace)
+    
     def __str__(self):
         return "Exception: %s\nMessage: %s \nStacktrace:\n%s\n" % (self.exception_name, self.exception_message, self.stacktrace)
 

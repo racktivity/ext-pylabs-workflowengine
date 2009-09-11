@@ -1,7 +1,6 @@
 from pymonkey import q
 
-from workflowengine.Exceptions import ScriptFailedException, AgentNotAvailableException, TimeOutException 
-from workflowengine.WFLJob import WFLJob
+from workflowengine.Exceptions import ActionNotFoundException, WFLException, TimeOutException
 from workflowengine.WFLActionManager import ActorActionTaskletPath
 
 from concurrence import Tasklet, Message
@@ -21,7 +20,7 @@ class WFLAgentController:
     def setAgentController(self, agentController):
         self.__agentController = agentController
         
-    def executeScript(self, agentguid, scriptpath, params, executionparams={}):
+    def executeScript(self, agentguid, actionname, scriptpath, params, executionparams={}, jobguid=None):
         """        
         Execute a script on an agent. The action will be executed in a new job that is the newest child of the current job.
         The new job will inherit the following properties of the job: name, description, userErrormsg, internalErrormsg, maxduration and customerguid.
@@ -29,6 +28,9 @@ class WFLAgentController:
         
         @param agentguid:                      Guid of the agent on which the script will be executed.
         @type agentguid:                       guid
+        
+        @param actionname:                     The name of the action, will filled in, in the job
+        @param actionname:                     string
         
         @param scriptpath:                     The path of the script, on the server.
         @type scriptpath:                      string 
@@ -39,6 +41,9 @@ class WFLAgentController:
         @param executionParams:                Dictionary can following keys: name, description, userErrormsg, internalErrormsg, maxduration, wait, timetostart, priority 
         @type executionParams:                 dictionary
         
+        @param jobguid:                        Optional parameter, can be used to override the current job.
+        @type jobguid:                         guid
+        
         @return:                               Dictionary with action result as result and the action's jobguid: {'result': <result>, 'jobguid': guid}
         @rtype:                                dictionary
         
@@ -47,20 +52,22 @@ class WFLAgentController:
         @raise AgentNotAvailableException:     If the agent is not available when starting the script, the script is not be started.
         @raise ScriptFailedException:          If an exception occurres on the agent while executing the script.
         """
-        job = WFLJob(parentjob=Tasklet.current().job.job, actionName=scriptpath, executionparams=executionparams, agentguid=agentguid)
-
+        #SETUP THE JOB AND THE PARAMS
+        currentjobguid = jobguid or Tasklet.current().jobguid
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actionname, executionparams, agentguid)
         #START A NEW TASKLET FOR THE JOB
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), job, agentguid, scriptpath, params)
+        q.workflowengine.jobmanager.startJob(jobguid)
+        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, agentguid, scriptpath, params)
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
         if msg.match(MSG_ACTION_NOWAIT):
-            return { 'jobguid':job.getJobGUID(), 'result':None }
+            return { 'jobguid':jobguid, 'result':None }
         if msg.match(MSG_ACTION_RETURN):
             return args[0]
         elif msg.match(MSG_ACTION_EXCEPTION):
             raise args[0]
 
-    def executeActorActionScript(self, agentguid, scriptname, params, executionparams={}):
+    def executeActorActionScript(self, agentguid, scriptname, params, executionparams={}, jobguid=None):
         """
         Execute an actor action script on an agent. The action will be executed in a new job that is the newest child of the current job.
         The new job will inherit the following properties of the job: name, description, userErrormsg, internalErrormsg, maxduration and customerguid.
@@ -80,9 +87,13 @@ class WFLAgentController:
         @param executionParams:                Dictionary can following keys: name, description, userErrormsg, internalErrormsg, maxduration, wait, timetostart, priority 
         @type executionParams:                 dictionary
         
+        @param jobguid:                        Optional parameter, can be used to override the current job.
+        @type jobguid:                         guid
+        
         @return:                               Dictionary with action result as result and the action's jobguid: {'result': <result>, 'jobguid': guid}
         @rtype:                                dictionary
         
+        @raise ActionNotFoundException         If the script was not found.
         @raise IOError:                        If the scriptpath can't be read.
         @raise TimeOutException:               If the agent did not respond within the maxduration: the script will be killed and the exception will be raised. 
         @raise AgentNotAvailableException:     If the agent is not available when starting the script, the script is not be started.
@@ -90,37 +101,32 @@ class WFLAgentController:
         """
         (actorname, actionname) = Tasklet.current().tags
         scriptpath = q.system.fs.joinPaths(ActorActionTaskletPath, actorname, actionname, ActorActionScriptFolder, scriptname + ".rscript")
-        return self.executeScript(agentguid, scriptpath, params, executionparams)
+        if not q.system.fs.exists(scriptpath):
+            raise ActionNotFoundException("ActorActionScript", actorname+"."+actionname, scriptname)
+        else:
+            return self.executeScript(agentguid, actorname+"."+actionname+"."+scriptname, scriptpath, params, executionparams, jobguid)
 
 
-    def __execute(self, parentTasklet, job, agentguid, scriptpath, params):
+    def __execute(self, parentTasklet, jobguid, agentguid, scriptpath, params):
         #SETUP THE CONTEXT
-        Tasklet.current().job = job
-        if job.wait is False: MSG_ACTION_NOWAIT.send(parentTasklet)()
+        Tasklet.current().jobguid = jobguid
+        wait = q.workflowengine.jobmanager.shouldWait(jobguid)
+        if wait is False: MSG_ACTION_NOWAIT.send(parentTasklet)()
         
         try:
-            output = self.__agentController.executeScript(agentguid, job.getJobGUID(), scriptpath, params, job.getMaxduration(), job.log)
-            if output['error'] == False:
-                params = output['params']
-            else:
-                job.raiseError("ERROR OCCURRED: errorcode=" + str(output['errorcode']) +", " + output['erroroutput'])
-                exception = ScriptFailedException(job.getJobGUID(), agentguid, scriptpath, output['errorcode'], output['erroroutput'])
-                if job.wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(exception))
-        except IOError, ioe:
-            job.raiseError(ioe)
-            if job.wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(ioe))
-        except AgentNotAvailableException, anae:
-            job.raiseError(anae)
-            if job.wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(anae))
+            params = self.__agentController.executeScript(agentguid, jobguid, scriptpath, params)
         except TimeOutException, te:
             try:
                 self.__agentController.killScript(agentguid, job.getJobGUID(), 10)
             except TimeOutException:
                 q.logger.log("Failed to kill Script '" + scriptpath + "' on agent '" + agentguid + "' for job '" + job.getJobGUID(), 1)
             
-            job.raiseError(te)
-            if job.wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(te))
+            q.workflowengine.jobmanager.setJobDied(jobguid, te)
+            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(te))
+        except Exception, e:
+            q.workflowengine.jobmanager.setJobDied(jobguid, e)
+            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e))
         else:
-            job.done()
-            if job.wait is True: MSG_ACTION_RETURN.send(parentTasklet)({'result':params['result'], 'jobguid':job.getJobGUID()})
+            q.workflowengine.jobmanager.setJobDone(jobguid, params.get('result'))
+            if wait is True: MSG_ACTION_RETURN.send(parentTasklet)({'jobguid':jobguid, 'result':params.get('result')})
 

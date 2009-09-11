@@ -1,8 +1,8 @@
 from pymonkey import q
 from pymonkey.tasklets import TaskletsEngine
 
-from workflowengine.WFLJob import WFLJob
 from workflowengine.Exceptions import ActionNotFoundException, WFLException
+from workflowengine.WFLJobManager import MSG_JOB_FINISHED
 
 from concurrence import Tasklet, Message
 
@@ -79,17 +79,17 @@ class WFLActionManager():
         if len(self.__taskletEngine.find(tags=(actorname, actionname), path=ActorActionTaskletPath)) == 0:
             raise ActionNotFoundException("ActorAction", actorname, actionname)
         #SETUP THE JOB AND THE PARAMS
-        currentjob = (jobguid and q.drp.job.get(jobguid)) or Tasklet.current().job.job
-        job = WFLJob(parentjob=currentjob, actionName=actorname+"."+actionname, executionparams=executionparams)
-        params['jobguid'] = job.getJobGUID()
+        currentjobguid = jobguid or Tasklet.current().jobguid
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams)
         #START A NEW TASKLET FOR THE JOB
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), job, params, (actorname, actionname), ActorActionTaskletPath)
+        q.workflowengine.jobmanager.startJob(jobguid)
+        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (actorname, actionname), ActorActionTaskletPath)
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
         if msg.match(MSG_ACTION_NOWAIT):
-            return { 'jobguid':job.getJobGUID(), 'result':None }
+            return { 'jobguid':jobguid, 'result':None }
         if msg.match(MSG_ACTION_RETURN):
-            return { 'jobguid':job.getJobGUID(), 'result':params.get('result')}
+            return { 'jobguid':jobguid, 'result':params.get('result')}
         elif msg.match(MSG_ACTION_EXCEPTION):
             raise args[0]
 
@@ -129,34 +129,60 @@ class WFLActionManager():
         if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
             raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
         #SETUP THE JOB AND THE PARAMS
-        currentjob = (jobguid and q.drp.job.get(jobguid)) or ((hasattr(Tasklet.current(), 'job') and getattr(Tasklet.current(), 'job').job) or None)
-        job = WFLJob(parentjob=currentjob, actionName=rootobjectname+"."+actionname, executionparams=executionparams)
-        params['jobguid'] = job.getJobGUID()
+        currentjobguid = jobguid or (hasattr(Tasklet.current(), 'jobguid') and Tasklet.current().jobguid) or None
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams)
         #START A NEW TASKLET FOR THE JOB
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), job, params, (rootobjectname, actionname), RootobjectActionTaskletPath)
+        q.workflowengine.jobmanager.startJob(jobguid)
+        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (rootobjectname, actionname), RootobjectActionTaskletPath)
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
         if msg.match(MSG_ACTION_NOWAIT):
-            return { 'jobguid':job.getJobGUID(), 'result':None }
+            return { 'jobguid':jobguid, 'result':None }
         if msg.match(MSG_ACTION_RETURN):
-            return { 'jobguid':job.getJobGUID(), 'result':params.get('result')}
+            return { 'jobguid':jobguid, 'result':params.get('result')}
         elif msg.match(MSG_ACTION_EXCEPTION):
             raise args[0]
 
+    def waitForActions(self, jobguids):
+        """
+        Wait for some background jobs to finish.
+        
+        @param jobguids:  A list containing the jobguids of the jobs you want to wait for.
+        @type jobguids:   array of jobguids
+        """
+        for jobguid in jobguids:
+            q.workflowengine.jobmanager.registerJobFinishedCallback(jobguid)
+        
+        out = {}
+        while len(jobguids) > 0:
+            (msg, args, kwargs) = Tasklet.receive().next()
+            if msg.match(MSG_JOB_FINISHED):
+                (jobguid, status, result) = args
+                jobguids.remove(jobguid)
+                out[jobguid] = (status, result)
+        
+        failed = filter(lambda jobguid: out[jobguid][0] == 'ERROR', out)
+        
+        if failed:
+           raise WFLException.createCombo(map(lambda jobguid: out[jobguid][1], failed))
+        else:
+            return dict(zip(map(lambda jobguid: jobguid, out), map(lambda jobguid: out[jobguid][1], out)))
+        
 
-    def __execute(self, parentTasklet, job, params, tags, path):
+    def __execute(self, parentTasklet, jobguid, params, tags, path):
         #SETUP THE CONTEXT
-        Tasklet.current().job = job
+        Tasklet.current().jobguid = jobguid
+        wait = q.workflowengine.jobmanager.shouldWait(jobguid)
         Tasklet.current().tags = tags
 
-        if job.wait is False: MSG_ACTION_NOWAIT.send(parentTasklet)()
+        if wait is False: MSG_ACTION_NOWAIT.send(parentTasklet)()
 
         #EXECUTE THE TASKLETS
         try:
             self.__taskletEngine.execute(params, tags=tags, path=path)
         except Exception, e:
-            job.raiseError(e)
-            if job.wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e))
+            q.workflowengine.jobmanager.setJobDied(jobguid, e)
+            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e))
         else:
-            job.done()
-            if job.wait is True: MSG_ACTION_RETURN.send(parentTasklet)()
+            q.workflowengine.jobmanager.setJobDone(jobguid, params.get('result'))
+            if wait is True: MSG_ACTION_RETURN.send(parentTasklet)()

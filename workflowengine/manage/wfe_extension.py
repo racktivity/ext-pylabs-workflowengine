@@ -13,11 +13,14 @@ except ImportError:
 if stackless:
     from workflowengine.WFLActionManager import WFLActionManager
     from workflowengine.WFLAgentController import WFLAgentController
+    from workflowengine.WFLJobManager import WFLJobManager
     from workflowengine.DRPClient import DRPClient
     
     ActionManager = WFLActionManager
     AgentController = WFLAgentController
+    JobManager = WFLJobManager
     Drp = DRPClient
+    
 else:
     
     class Dummy:
@@ -29,6 +32,7 @@ else:
     else:
         ActionManager = Dummy
     
+    JobManager = Dummy
     AgentController = Dummy
     
     from workflowengine.QshellDRPClient import DRPClient
