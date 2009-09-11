@@ -57,7 +57,7 @@ class WFLJob:
     
     def __start(self):
         self.job.jobstatus = "RUNNING"
-        self.job.starttime = str(datetime.now())
+        self.job.starttime = datetime.now()
         self.job.log = ""
 
     def getJobGUID(self):
@@ -103,7 +103,7 @@ class WFLJob:
             raise JobNotRunningException(self.job.guid, self.job.jobstatus)
         
         self.job.jobstatus = "DONE"
-        self.job.endtime = str(datetime.now())
+        self.job.endtime = datetime.now()
         q.drp.job.save(self.job)
     
     def raiseError(self, exception):
@@ -117,7 +117,7 @@ class WFLJob:
             raise JobNotRunningException(self.job.guid, self.job.jobstatus)
         
         self.job.jobstatus = "ERROR"
-        self.job.endtime = str(datetime.now())
+        self.job.endtime = datetime.now()
         self.log(str(exception), 1, "Exception occured")
         q.drp.job.save(self.job)
         
