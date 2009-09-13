@@ -17,16 +17,7 @@ class WFLJobManager:
         
         self.__rootJobGuid_treejobs_mapping = {}
 
-    class Dummy:
-        def __init__(self):
-            pass
-
     def createJob(self, parentjobguid, actionName, executionparams, agentguid=None):
-        #print "c " + "="*30
-        #print "c Waiting = " + str(self.__waitingJobs)
-        #print "c Running = " + str(self.__runningJobs)
-        #print "c Stopped = " + str(self.__stoppedJobs)
-        
         parentjob = parentjobguid and self.__getJob(parentjobguid)
         job = WFLJob(parentjob, actionName, executionparams, agentguid)
         # The ancestor (top of the jobtree) is used to perform refcount garbage collection on the stoppedJobs
@@ -37,74 +28,39 @@ class WFLJobManager:
         job.ancestor.runningJobsInTree += 1
         # TODO Waiting jobs should be stored in the action queue in OSIS
         self.__waitingJobs[job.drp_object.guid] = job
-        
-        #print "c Create job %s" % job.drp_object.guid
-        #print "c Waiting = " + str(self.__waitingJobs)
-        #print "c Running = " + str(self.__runningJobs)
-        #print "c Stopped = " + str(self.__stoppedJobs)
-        
         return job.drp_object.guid
     
     def startJob(self, jobguid):
-        #print "s " + "="*30
-        #print "s Waiting = " + str(self.__waitingJobs)
-        #print "s Running = " + str(self.__runningJobs)
-        #print "s Stopped = " + str(self.__stoppedJobs)
-        
         if jobguid in self.__waitingJobs:
             job = self.__waitingJobs.pop(jobguid)
-            job.start()
             self.__runningJobs[jobguid] = job
+            job.start()
             # TODO Running jobs should be stored in the action queue in OSIS
         else:
             # TODO Check in OSIS if the job exists and if it is waiting: should be stored in the action queue
             raise Exception("Job '%s' cannot be started, it is not waiting." % jobguid)
         
-        #print "s Start job %s " % jobguid
-        #print "s Waiting = " + str(self.__waitingJobs)
-        #print "s Running = " + str(self.__runningJobs)
-        #print "s Stopped = " + str(self.__stoppedJobs)
-    
     def setJobDone(self, jobguid, result):
-        #print "d " + "="*30
-        #print "d Waiting = " + str(self.__waitingJobs)
-        #print "d Running = " + str(self.__runningJobs)
-        #print "d Stopped = " + str(self.__stoppedJobs)
-        
         if jobguid in self.__runningJobs:
             job = self.__runningJobs.pop(jobguid)
+            self.__stoppedJobs[job.drp_object.guid] = job
             job.done(result)
             self.__stoppedJob(job)
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
-        
-        #print "d Job done %s " % jobguid
-        #print "d Waiting = " + str(self.__waitingJobs)
-        #print "d Running = " + str(self.__runningJobs)
-        #print "d Stopped = " + str(self.__stoppedJobs)
     
     def setJobDied(self, jobguid, exception):
-        #print ("D %s"%jobguid) + "="*30
-        #print ("D %s"%jobguid)+" Waiting = " + str(self.__waitingJobs)
-        #print ("D %s"%jobguid)+" Running = " + str(self.__runningJobs)
-        #print ("D %s"%jobguid)+" Stopped = " + str(self.__stoppedJobs)
-        
         if jobguid in self.__runningJobs:
             job = self.__runningJobs.pop(jobguid)
+            self.__stoppedJobs[job.drp_object.guid] = job
             job.died(exception)
             self.__stoppedJob(job)
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
     
-        #print ("D %s"%jobguid)+" Job died %s" % jobguid
-        #print ("D %s"%jobguid)+" Waiting = " + str(self.__waitingJobs) + " " + str(self.__waitingJobs.__hash__)
-        #print ("D %s"%jobguid)+" Running = " + str(self.__runningJobs)
-        #print ("D %s"%jobguid)+" Stopped = " + str(self.__stoppedJobs)
-    
     def __stoppedJob(self, job):
-        self.__stoppedJobs[job.drp_object.guid] = job
         self.__notifyJobFinishedCallbacks(job)
         
         # Do garbage collection if the jobtree is empty !
@@ -113,7 +69,6 @@ class WFLJobManager:
              jobs = self.__rootJobGuid_treejobs_mapping.pop(job.ancestor.drp_object.guid)
              for job in jobs:
                  self.__stoppedJobs.pop(job.drp_object.guid)
-                 #print "Removed job %s" % job.drp_object.guid
     
     def appendJobLog(self, jobguid, logmessage, level=5, source=""):
         if jobguid in self.__runningJobs:
@@ -132,11 +87,9 @@ class WFLJobManager:
     
     def registerJobFinishedCallback(self, jobguid):
         job = self.__getJob(jobguid)
-        #print "Registering callback for job %s" % (jobguid)
         if job.drp_object.jobstatus is q.enumerators.jobstatus.WAITING or job.drp_object.jobstatus is q.enumerators.jobstatus.RUNNING:
             job.jobFinishedCallbacks.append(Tasklet.current())
         else:
-            #print "Job %s is already done : STATUS = %s" % (jobguid, job.drp_object.jobstatus)
             self.__notifyJobFinishedCallback(Tasklet.current(), job)
     
     def __getJob(self, jobguid):
@@ -154,8 +107,6 @@ class WFLJobManager:
             self.__notifyJobFinishedCallback(tasklet, job)
     
     def __notifyJobFinishedCallback(self, tasklet, job):
-        #print "Doing callback for job %s with status %s" % (job.drp_object.guid, job.drp_object.jobstatus)
-        
         if job.drp_object.jobstatus is q.enumerators.jobstatus.DONE:
             MSG_JOB_FINISHED.send(tasklet)(job.drp_object.guid, 'DONE', job.result)
         elif job.drp_object.jobstatus is q.enumerators.jobstatus.ERROR:
@@ -255,9 +206,8 @@ class WFLJob:
         
         self.drp_object.jobstatus = q.enumerators.jobstatus.DONE
         self.drp_object.endtime = datetime.now()
-        self.commit_drp_object()
-        
         self.result = result
+        self.commit_drp_object()  
     
     def died(self, exception):
         """
@@ -273,9 +223,8 @@ class WFLJob:
         self.drp_object.endtime = datetime.now()
         if not isinstance(exception, WFLException):
             self.log(str(exception), 1, "Exception occured")
-        self.commit_drp_object()
-        
         self.exception = exception
+        self.commit_drp_object()
 
     def create_drp_object(self):
         """
