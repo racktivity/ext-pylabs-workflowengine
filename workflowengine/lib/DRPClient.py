@@ -14,7 +14,7 @@ from workflowengine.Exceptions import WFLException
 class MSG_DRP_CALL(Message): pass
 class MSG_DRP_RETURN(Message): pass
 class MSG_DRP_EXCEPTION(Message): pass
-        
+
 class DRPClient():
     '''
     A dummy DRPClient, the connectDRPClient of DRPTask can be used to initialize the client.
@@ -23,23 +23,23 @@ class DRPClient():
 
 class DRPInterface():
     ''' The connectDRPClient function of DRPTask places this interface on the DRPClient for each root object. '''
-    
+
     def __init__(self, tasklet, name):
         self.__drpTasklet = tasklet
         self.__name = name
-        
+
     def get(self, guid, version=None):
         return self.__sendToDrpTasklet('get', guid, version)
-    
+
     def save(self, object_):
         return self.__sendToDrpTasklet('save', object_)
-    
+
     def new(self, *args, **kwargs):
         return self.__sendToDrpTasklet('new', *args, **kwargs)
-    
+
     def find(self, filter_, view=None):
         return self.__sendToDrpTasklet('find', filter_, view)
-    
+
     def findAsView(self, filter_, viewName):
         return self.__sendToDrpTasklet('findAsView', filter_, viewName)
 
@@ -52,7 +52,7 @@ class DRPInterface():
     @staticmethod
     def getFilterObject():
         return OsisFilterObject()
-    
+
     def __sendToDrpTasklet(self, *args, **kwargs):
         MSG_DRP_CALL.send(self.__drpTasklet)(Tasklet.current(), self.__name, *args, **kwargs)
         (msg, args, kwargs) = Tasklet.receive().next()
@@ -63,18 +63,18 @@ class DRPInterface():
 
 
 class DRPTask:
-    
+
     def __init__(self, address, service):
         init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
-        
+
         try:
             self.connection = OsisConnection(XMLRPCTransport(address, service), ThriftSerializer)
         except:
             q.logger.log("[DRPTask] Failed to initialize the OSIS application server service connection.", 1)
             raise
-        
+
         self.__tasklet = None
-    
+
     def connectDRPClient(self, drpClient):
         '''
         Connect the DRPClient to this tasklet. As a result, the DRPClient will send his DRP messages to the tasklet in this task.
@@ -83,15 +83,15 @@ class DRPTask:
         if self.__tasklet == None:
             q.logger.log("[DRPTask] The DRPTask is not yet started, can't connect the drpClient.", 1)
             raise Exception("The DRPTask is not yet started, can't connect the drpClient.")
-        
+
         from osis import ROOTOBJECT_TYPES as types
         for type in types.itervalues():
             name = getattr(type, 'OSIS_TYPE_NAME', type.__name__.lower())
             setattr(drpClient, name, DRPInterface(self.__tasklet, name))
-    
+
     def start(self):
         self.__tasklet = Tasklet.new(self.__run)()
-    
+
     def __run(self):
         for msg, args, kwargs in Tasklet.receive():
             if msg.match(MSG_DRP_CALL):

@@ -82,6 +82,7 @@ class WFLActionManager():
         currentjobguid = jobguid or Tasklet.current().jobguid
         params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams)
         #START A NEW TASKLET FOR THE JOB
+
         q.workflowengine.jobmanager.startJob(jobguid)
         tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (actorname, actionname), ActorActionTaskletPath)
         #WAIT FOR THE ANSWER
@@ -133,9 +134,12 @@ class WFLActionManager():
         params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams)
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
+
         tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (rootobjectname, actionname), RootobjectActionTaskletPath)
+
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
+
         if msg.match(MSG_ACTION_NOWAIT):
             return { 'jobguid':jobguid, 'result':None }
         if msg.match(MSG_ACTION_RETURN):
@@ -146,13 +150,13 @@ class WFLActionManager():
     def waitForActions(self, jobguids):
         """
         Wait for some background jobs to finish.
-        
+
         @param jobguids:  A list containing the jobguids of the jobs you want to wait for.
         @type jobguids:   array of jobguids
         """
         for jobguid in jobguids:
             q.workflowengine.jobmanager.registerJobFinishedCallback(jobguid)
-        
+
         out = {}
         while len(jobguids) > 0:
             (msg, args, kwargs) = Tasklet.receive().next()
@@ -160,14 +164,14 @@ class WFLActionManager():
                 (jobguid, status, result) = args
                 jobguids.remove(jobguid)
                 out[jobguid] = (status, result)
-        
+
         failed = filter(lambda jobguid: out[jobguid][0] == 'ERROR', out)
-        
+
         if failed:
-           raise WFLException.createCombo(map(lambda jobguid: out[jobguid][1], failed))
+            raise WFLException.createCombo(map(lambda jobguid: out[jobguid][1], failed))
         else:
             return dict(zip(map(lambda jobguid: jobguid, out), map(lambda jobguid: out[jobguid][1], out)))
-        
+
 
     def __execute(self, parentTasklet, jobguid, params, tags, path):
         #SETUP THE CONTEXT
@@ -183,6 +187,7 @@ class WFLActionManager():
         except Exception, e:
             q.workflowengine.jobmanager.setJobDied(jobguid, e)
             if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e))
+
         else:
             q.workflowengine.jobmanager.setJobDone(jobguid, params.get('result'))
             if wait is True: MSG_ACTION_RETURN.send(parentTasklet)()
