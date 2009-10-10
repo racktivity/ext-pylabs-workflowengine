@@ -1,10 +1,6 @@
 from pymonkey import q
 from pymonkey.config import ConfigManagementItem, ItemGroupClass
 
-def inAppserver():
-    import threading
-    return hasattr(q.application, '_store') and isinstance(q.application._store, threading.local)
-
 try:
     import stackless
 except ImportError:
@@ -26,12 +22,7 @@ else:
     class Dummy:
         pass
     
-    if inAppserver():
-        from workflowengine.CloudAPIActionManager import WFLActionManager
-        ActionManager = WFLActionManager
-    else:
-        ActionManager = Dummy
-    
+    ActionManager = Dummy
     JobManager = Dummy
     AgentController = Dummy
     
@@ -48,7 +39,7 @@ class WFLConfigItem(ConfigManagementItem):
     DESCRIPTION = "Workflowengine configuration"
 
     def ask(self):
-        self.dialogAskInteger('port', 'The port of workflowengine socket', 9876)
+        self.dialogAskInteger('port', 'The port of workflowengines appserver', 9876)
         # osis_address: doesn't work with localhost in stead of 127.0.0.1. Due to ConcurrenceSocket limitations.
         self.dialogAskString('osis_address', 'The address of the applicationserver running the OSIS service', 'http://127.0.0.1:8888') 
         self.dialogAskString('osis_service', 'The name of the OSIS service', 'osis_service')
