@@ -71,9 +71,9 @@ def ManageSockets():
 
     while len(asyncore.socket_map):
         # Check the sockets for activity.
-        asyncore.poll(0.05)
+        asyncore.poll(0.001)
         # Yield to give other tasklets a chance to be scheduled.
-        Tasklet.sleep(0.01)
+        Tasklet.sleep(0.001)
 
     managerRunning = False
 
