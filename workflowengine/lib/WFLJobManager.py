@@ -150,7 +150,7 @@ class WFLJob:
         if parentjob:
             self.drp_object.parentjobguid = parentjob.drp_object.guid
             self.drp_object.order = WFLJob.getNextChildOrder(parentjob.drp_object.guid)
-            inheritFromParent(self.drp_object, parentjob.drp_object)
+            #inheritFromParent(self.drp_object, parentjob.drp_object)
             self.ancestor = parentjob.ancestor
 
         self.drp_object.actionName = actionName
