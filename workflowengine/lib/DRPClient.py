@@ -10,6 +10,7 @@ from concurrence import Tasklet, Message
 
 from workflowengine.Exceptions import WFLException
 
+import uuid
 
 class MSG_DRP_CALL(Message): pass
 class MSG_DRP_RETURN(Message): pass
@@ -24,45 +25,93 @@ class DRPClient():
 class DRPInterface():
     ''' The connectDRPClient function of DRPTask places this interface on the DRPClient for each root object. '''
 
-    def __init__(self, tasklet, name):
-        self.__drpTasklet = tasklet
+    def __init__(self, name, drp):
         self.__name = name
+        self.__drp = drp
 
     def get(self, guid, version=None):
-        return self.__sendToDrpTasklet('get', guid, version)
+        return self.__drp.sendToDrp(self.__name, 'get', guid, version)
 
     def save(self, object_):
-        return self.__sendToDrpTasklet('save', object_)
+        return self.__drp.sendToDrp(self.__name, 'save', object_)
 
     def new(self, *args, **kwargs):
-        return self.__sendToDrpTasklet('new', *args, **kwargs)
+        return self.__drp.sendToDrp(self.__name, 'new', *args, **kwargs)
 
     def find(self, filter_, view=None):
-        return self.__sendToDrpTasklet('find', filter_, view)
+        return self.__drp.sendToDrp(self.__name, 'find', filter_, view)
 
     def findAsView(self, filter_, viewName):
-        return self.__sendToDrpTasklet('findAsView', filter_, viewName)
+        return self.__drp.sendToDrp(self.__name, 'findAsView', filter_, viewName)
 
     def query(self, query):
-        return self.__sendToDrpTasklet('query', query)
+        return self.__drp.sendToDrp(self.__name, 'query', query)
 
     def delete(self, guid, version=None):
-        return self.__sendToDrpTasklet('delete', guid, version)
+        return self.__drp.sendToDrp(self.__name, 'delete', guid, version)
 
     @staticmethod
     def getFilterObject():
         return OsisFilterObject()
 
-    def __sendToDrpTasklet(self, *args, **kwargs):
-        MSG_DRP_CALL.send(self.__drpTasklet)(Tasklet.current(), self.__name, *args, **kwargs)
-        (msg, args, kwargs) = Tasklet.receive().next()
-        if msg.match(MSG_DRP_RETURN):
-            return args[0]
-        elif msg.match(MSG_DRP_EXCEPTION):
-            raise args[0]
+class BufferedDRPInterface():
+    ''' The buffered drp interface postpones the stores of the objects. '''
+
+    def __init__(self, name, drp, buffer):
+        self.__name = name
+        self.__drp = drp
+        self.__buffer = buffer
+
+    def get(self, guid):
+        ''' Check buffer, not in buffer: go to osis '''
+        if guid in self.__buffer:
+            return self.__buffer[guid]
+        else:
+            return self.__drp.sendToDrp(self.__name, 'get', guid)
+
+    def save(self, object_):
+        ''' Save the object in the buffer and give it a guid '''
+        try:
+            guid = object_.guid
+        except AttributeError:
+            guid = None
+        if not guid:
+            object_.guid = str(uuid.uuid4())
+        
+        self.__buffer[object_.guid] = object_
+
+    def new(self, *args, **kwargs):
+        ''' Create a new object, no need to use osis '''
+        return self.__drp.sendToDrp(self.__name, 'new', *args, **kwargs)
+
+    def find(self, filter_, view=None):
+        ''' Can't use find on the buffer: first commit everything to osis, then find '''
+        self.__drp.commit_buffer(self.__name, self.__buffer)
+        return self.__drp.sendToDrp(self.__name, 'find', filter_, view)
+
+    def findAsView(self, filter_, viewName):
+        ''' Can't use findAsView on the buffer: first commit everything to osis, then find '''
+        self.__drp.commit_buffer(self.__name, self.__buffer)
+        return self.__drp.sendToDrp(self.__name, 'findAsView', filter_, viewName)
+
+    def query(self, query):
+        ''' Can't use query on the buffer: first commit everything to osis, then find '''
+        self.__drp.commit_buffer(self.__name, self.__buffer)
+        return self.__drp.sendToDrp(self.__name, 'query', query)
+
+    def delete(self, guid):
+        ''' Delete the object from the queue and from osis '''
+        self.__buffer.pop(guid)
+        return self.__drp.sendToDrp(self.__name, 'delete', guid)
+
+    @staticmethod
+    def getFilterObject():
+        return OsisFilterObject()
 
 
 class DRPTask:
+
+    bufferedObjects = [ 'job' ]
 
     def __init__(self, address, service):
         init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
@@ -74,6 +123,9 @@ class DRPTask:
             raise
 
         self.__tasklet = None
+        
+        self.__buffers = {}
+        self.__buffer_tasklet = None
 
     def connectDRPClient(self, drpClient):
         '''
@@ -87,10 +139,25 @@ class DRPTask:
         from osis import ROOTOBJECT_TYPES as types
         for type in types.itervalues():
             name = getattr(type, 'OSIS_TYPE_NAME', type.__name__.lower())
-            setattr(drpClient, name, DRPInterface(self.__tasklet, name))
+            if name in self.bufferedObjects:
+                buffer = {}
+                self.__buffers[name] = buffer
+                setattr(drpClient, name, BufferedDRPInterface(name, self, buffer))
+            else:
+                setattr(drpClient, name, DRPInterface(name, self))
 
     def start(self):
         self.__tasklet = Tasklet.new(self.__run)()
+        if len(self.bufferedObjects) > 0:
+            self.__buffer_tasklet = Tasklet.new(self.__buffer_run)()
+
+    def sendToDrp(self, name, *args, **kwargs):
+        MSG_DRP_CALL.send(self.__tasklet)(Tasklet.current(), name, *args, **kwargs)
+        (msg, args, kwargs) = Tasklet.receive().next()
+        if msg.match(MSG_DRP_RETURN):
+            return args[0]
+        elif msg.match(MSG_DRP_EXCEPTION):
+            raise args[0]
 
     def __run(self):
         for msg, args, kwargs in Tasklet.receive():
@@ -105,3 +172,20 @@ class DRPTask:
                     MSG_DRP_EXCEPTION.send(caller)(WFLException.create(e))
                 else:
                     MSG_DRP_RETURN.send(caller)(result)
+    
+    def __buffer_run(self):
+        ''' Flush the buffers to OSIS every second '''
+        while True:
+            for buffer_name in self.__buffers:
+                self.commit_buffer(buffer_name, self.__buffers[buffer_name])
+            Tasklet.sleep(1)
+    
+    def commit_buffer(self, name, buffer):
+        ''' Commit 1 buffer to OSIS '''
+        commit_buffer = {}
+        commit_buffer.update(buffer)
+        buffer.clear()
+        
+        for object_ in commit_buffer.values():
+            self.sendToDrp(name, 'save', object_)
+        
