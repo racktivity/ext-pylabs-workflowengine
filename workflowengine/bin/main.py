@@ -1,19 +1,23 @@
 import sys, traceback
-from signal import signal, SIGTERM
-## The below sys.path is a temporary fix for the sandbox without stackless.
-##sys.path = ['', '/opt/qbase3/lib/python25.zip', '/opt/qbase3/lib/python2.5', '/opt/qbase3/lib/python2.5/plat-linux2', '/opt/qbase3/lib/python2.5/lib-tk', '/opt/qbase3/lib/python2.5/lib-dynload', '/opt/qbase3/lib/python2.5/site-packages', '/opt/qbase3/lib/python/site-packages', '/opt/qbase3/lib/pymonkey/core', '/opt/qbase3/lib/pymonkey/core/PyMonkey-4.0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/osis-0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/configobj-4.5.3-py2.5.egg', '/opt/qbase3/lib/python2.5/site-packages/concurrence-0.3.1-py2.5-linux-i686.egg']
-
 sys.path.append('/opt/qbase3/lib/python2.5/site-packages/concurrence-0.3.1-py2.5-linux-i686.egg')
+
 from pymonkey.InitBaseCore import q, i
 from pymonkey.tasklets import TaskletsEngine
-from pymonkey.log.LogTargets import *
+from pymonkey.log.LogTargets import LogTargetFileSystem
+
 q.application.appname = "workflowengine"
 
 from concurrence import Tasklet, Message, dispatch
 
+try:
+    import json
+except ImportError:
+    import simplejson as json
+
 from workflowengine.DRPClient import DRPTask
-from workflowengine.SocketServer import SocketTask
 from workflowengine.AgentController import AgentControllerTask
+from workflowengine.AppServer import AppServerTask
+
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
 
@@ -32,23 +36,18 @@ def main():
         #INITIALIZE THE APPLICATION
         q.logger.addLogTarget(LogTargetFileSystem(maxverbositylevel=5))
         q.logger.addLogTarget(WFLJobLogTarget())
-        q.logger.addLogTarget(LogTargetScribeClientAppNameLogLevelScenario())
-        q.logger.addLogTarget(LogTargetScribeClientAppNameScenario())
-
         config = i.config.workflowengine.getConfig('main')
 
         #INITIALIZE THE TASKS
-        socket_task = SocketTask(int(config['port']))
-        def _handle_message(data):
-            try:
-                ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
-                socket_task.sendData({'id':data['id'], 'error':False, 'return':ret})
-            except Exception, e:
-                socket_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
-        socket_task.setMessageHandler(_handle_message)
-
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
         ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], config['password'])
+        
+        appserver_task = AppServerTask(int(config['port']))
+        appserver_task.addSerializer('json', json.dumps, json.loads)
+        def cloud_api_handler(call):
+            return q.workflowengine.actionmanager.startRootobjectAction(str(call['rootobject']), str(call['action']), call['params'], call['executionparams'], call['jobguid'])
+        appserver_task.addCallHandler('cloud_api', cloud_api_handler)
+        
     except Exception, e:
         q.logger.log("[SL_WFL] Initialization failed: " + str(e), 1)
         traceback.print_exc()
@@ -57,23 +56,16 @@ def main():
     else:
         q.system.fs.createEmptyFile(initSuccessFile)
 
-        #SETUP THE SIGNAL HANDLER: CLOSE THE SOCKET ON EXIT
-        def sigterm_received():
-            q.logger.log('Received SIGTERM: shutting down.')
-            socket_task.stop()
-            sys.exit(-SIGTERM)
-        signal(SIGTERM, lambda signum, stack_frame: sigterm_received())
-
-        #START THE TASKS AND REGISTER THEM IN THE Q-TREE
-        socket_task.start()
-
+        #START THE TASKS AND REGISTER THEM IN THE Q-TREE        
         drp_task.start()
         drp_task.connectDRPClient(q.drp)
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
+        
+        appserver_task.start()
 
         print "Ready !"
 
-if __name__=='__main__':
+if __name__ == '__main__':
     dispatch(main)
