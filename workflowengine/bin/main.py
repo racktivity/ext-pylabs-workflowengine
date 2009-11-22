@@ -6,7 +6,9 @@ from signal import signal, SIGTERM
 sys.path.append('/opt/qbase3/lib/python2.5/site-packages/concurrence-0.3.1-py2.5-linux-i686.egg')
 from pymonkey.InitBaseCore import q, i
 from pymonkey.tasklets import TaskletsEngine
-from pymonkey.log.LogTargets import *
+from pymonkey.logging.logtargets.LogTargetFS import LogTargetFS
+from pymonkey.logging.logtargets.LogTargetScribe import LogTargetScribe
+
 q.application.appname = "workflowengine"
 
 from concurrence import Tasklet, Message, dispatch
@@ -30,10 +32,10 @@ def main():
 
     try:
         #INITIALIZE THE APPLICATION
-        q.logger.addLogTarget(LogTargetFileSystem(maxverbositylevel=5))
-        q.logger.addLogTarget(WFLJobLogTarget())
-        q.logger.addLogTarget(LogTargetScribeClientAppNameLogLevelScenario())
-        q.logger.addLogTarget(LogTargetScribeClientAppNameScenario())
+        q.logger.logTargetAdd(LogTargetFS())
+        q.logger.logTargetAdd(WFLJobLogTarget())
+        q.logger.logTargetAdd(LogTargetScribe())
+
 
         config = i.config.workflowengine.getConfig('main')
 
