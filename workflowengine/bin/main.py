@@ -1,10 +1,8 @@
 import sys, traceback
 from signal import signal, SIGTERM
-## The below sys.path is a temporary fix for the sandbox without stackless.
-##sys.path = ['', '/opt/qbase3/lib/python25.zip', '/opt/qbase3/lib/python2.5', '/opt/qbase3/lib/python2.5/plat-linux2', '/opt/qbase3/lib/python2.5/lib-tk', '/opt/qbase3/lib/python2.5/lib-dynload', '/opt/qbase3/lib/python2.5/site-packages', '/opt/qbase3/lib/python/site-packages', '/opt/qbase3/lib/pymonkey/core', '/opt/qbase3/lib/pymonkey/core/PyMonkey-4.0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/osis-0.1-py2.5.egg', '/opt/qbase3/lib/python/site-packages/configobj-4.5.3-py2.5.egg', '/opt/qbase3/lib/python2.5/site-packages/concurrence-0.3.1-py2.5-linux-i686.egg']
 
-sys.path.append('/opt/qbase3/lib/python2.5/site-packages/concurrence-0.3.1-py2.5-linux-i686.egg')
 from pymonkey.InitBaseCore import q, i
+
 from pymonkey.tasklets import TaskletsEngine
 from pymonkey.log.LogTargets import LogTargetFileSystem
 

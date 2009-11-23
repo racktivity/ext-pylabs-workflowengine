@@ -2,14 +2,14 @@ from pymonkey import q, i
 import signal, time
 
 class WorkflowEngineManage:
-    stacklessBin = q.system.fs.joinPaths(q.dirs.baseDir, 'bin', 'stackless')
-    workflowengineBin = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','bin', 'main.py') 
+    stacklessBin = q.system.fs.joinPaths(q.dirs.baseDir, 'bin', 'python')
+    workflowengineBin = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','bin', 'main.py')
     workflowengineProcess = '%s %s'%(stacklessBin, workflowengineBin)
-    
+
     pidFile = q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine.pid')
     stdoutFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.stdout')
     stderrFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.stderr')
-    
+
     initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initSuccess')
     initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
 
@@ -32,11 +32,11 @@ class WorkflowEngineManage:
                         if q.system.fs.exists(file): q.system.fs.remove(file)
                     pid = q.system.process.runDaemon(self.workflowengineProcess, stdout=self.stdoutFile,  stderr=self.stderrFile)
                     q.system.fs.writeFile(self.pidFile, str(pid))
-                    
+
                     print " Waiting for initialization"
                     while not (q.system.fs.exists(self.initSuccessFile) or q.system.fs.exists(self.initFailedFile)) and q.system.process.checkProcess(self.workflowengineProcess) == 0:
                         time.sleep(0.5)
-                    
+
                     if q.system.fs.exists(self.initSuccessFile):
                         print "Workflowengine started"
                     else:
@@ -50,7 +50,7 @@ class WorkflowEngineManage:
         if self.getStatus() == q.enumerators.AppStatusType.RUNNING:
             print "Stopping the workflowengine."
             q.system.process.kill(int(self._getPid()), sig=signal.SIGTERM)
-            
+
             i = 10
             while self.getStatus() == q.enumerators.AppStatusType.RUNNING:
                 if i > 0:
@@ -60,7 +60,7 @@ class WorkflowEngineManage:
                 else:
                     print "Could not stop the workflowengine. Next step: kill it with q.manage.workflowengine.kill()."
                     return
-                
+
             print "Stopped the workflowengine."
         else:
             print "The workflowengine is not running."
