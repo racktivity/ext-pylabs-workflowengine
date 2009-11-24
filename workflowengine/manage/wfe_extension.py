@@ -5,12 +5,10 @@ def inAppserver():
     import threading
     return hasattr(q.application, '_store') and isinstance(q.application._store, threading.local)
 
-try:
-    import stackless
-except ImportError:
-    stackless = None
+def inWFE():
+    return hasattr(q.application, 'appname') and q.application.appname == 'workflowengine'
 
-if stackless:
+if inWFE():
     from workflowengine.WFLActionManager import WFLActionManager
     from workflowengine.WFLAgentController import WFLAgentController
     from workflowengine.WFLJobManager import WFLJobManager
