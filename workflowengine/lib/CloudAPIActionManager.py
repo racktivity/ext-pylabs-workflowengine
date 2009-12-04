@@ -3,6 +3,10 @@ from twisted.internet import protocol, reactor
 
 from pymonkey import q, i
 
+ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
+ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
+RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
+
 class WFLActionManager():
     """
     This implementation of the ActionManager is available to the cloudAPI: only root object actions are available.
@@ -19,6 +23,19 @@ class WFLActionManager():
         
         self.idlock = threading.Lock()
         self.id = 0
+        
+        
+        ###### For synchronous execution ##########
+        from pymonkey.tasklets import TaskletsEngine
+        self.__taskletEngine = TaskletsEngine()
+        ##create tasklets dir if it doesnt exist
+        if not q.system.fs.exists(ActorActionTaskletPath):
+            q.system.fs.createDir(ActorActionTaskletPath)
+        self.__taskletEngine.addFromPath(ActorActionTaskletPath)
+        if not q.system.fs.exists(RootobjectActionTaskletPath):
+            q.system.fs.createDir(RootobjectActionTaskletPath)
+        self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
+        ###### /For synchronous execution ##########
 
     def _receivedData(self, data):
         self.running[data['id']]['return'] = data.get('return')
@@ -34,10 +51,25 @@ class WFLActionManager():
         raise ActionUnavailableException()
         
     def startRootobjectAction(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+
+        # For backwards compatibility
+        # If called not explicitely, wait for result
+	if not 'wait' in executionparams:
+            executionparams['wait'] = True
+        
+        return self.startRootobjectActionAsynchronous(rootobjectname, actionname, params, executionparams, jobguid)
+        
+    def startRootobjectActionAsynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
         Send the root object action to the stackless workflowengine over a socket.
         The root object action will wait until the workflowengine returns a result.
         """
+        
+	# For backwards compatibility 
+        # If called explicitely, don't wait for result 
+        if not 'wait' in executionparams:
+            executionparams['wait'] = False
+        
         self.idlock.acquire()
         my_id = self.id
         self.id += 1
@@ -56,7 +88,21 @@ class WFLActionManager():
             return data['return']
         else:
             raise data['exception']
-
+        
+    def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+        
+        q.logger.log('>>> Executing startRootobjectActionSynchronous : %s %s %s' % (rootobjectname, actionname, params), 1)
+        
+        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
+            raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
+        
+        self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)
+        
+        result = {'jobguid': None, 'result': params['result']}
+        
+        q.logger.log('>>> startRootobjectActionSynchronous returns : %s ' % result, 1)
+        
+        return result
 
 class ActionUnavailableException(Exception):
     def __init__(self):
