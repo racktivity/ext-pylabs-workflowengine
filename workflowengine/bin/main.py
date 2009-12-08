@@ -4,7 +4,6 @@ from signal import signal, SIGTERM
 from pymonkey.InitBaseCore import q, i
 
 from pymonkey.tasklets import TaskletsEngine
-from pymonkey.logging.logtargets.LogTargetFS import LogTargetFS
 #from pymonkey.logging.logtargets.LogTargetScribe import LogTargetScribe
 
 q.application.appname = "workflowengine"
@@ -30,7 +29,6 @@ def main():
 
     try:
         #INITIALIZE THE APPLICATION
-        q.logger.logTargetAdd(LogTargetFS())
         q.logger.logTargetAdd(WFLJobLogTarget())
         #q.logger.logTargetAdd(LogTargetScribe())
 
