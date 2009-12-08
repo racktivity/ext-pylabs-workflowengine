@@ -15,8 +15,8 @@ class MSG_JOB_TIMEOUT(Message): pass
 
 class AgentControllerTask:
 
-    def __init__(self, agentcontrollerid, xmppserver, password):
-        self.__xmppclient = XMPPClient(agentcontrollerid, xmppserver, password)
+    def __init__(self, agentcontrollerid, xmppserver, hostname, password):
+        self.__xmppclient = XMPPClient(agentcontrollerid, xmppserver, hostname, password)
         self.__sending_tasklet = None
         self.__receiving_tasklet = None
         self.__agent_controller = None
