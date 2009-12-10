@@ -1,13 +1,19 @@
 from pymonkey import q
 
-from pymonkey.log.LogTargets import LogTarget
 from concurrence import Tasklet
 
-class WFLJobLogTarget(LogTarget):
+class WFLJobLogTarget(object):
 
     def __init__(self):
-        LogTarget.__init__(self)
         self.maxVerbosityLevel = 5
+        self.enabled = True
+
+    def checkTarget(self):
+        """
+        check status of target, if ok return True
+        for std out always True
+        """
+        True
 
     def __str__(self):
         return "WFLJobLogTarget"
@@ -15,10 +21,22 @@ class WFLJobLogTarget(LogTarget):
     def ___repr__(self):
         return str(self)
 
-    def log(self, record):
+    def log(self, message):
         if hasattr(Tasklet.current(), 'jobguid'):
             jobguid = Tasklet.current().jobguid
-            q.workflowengine.jobmanager.appendJobLog(jobguid, record.msg, record.verbosityLevel)
+            q.workflowengine.jobmanager.appendJobLog(jobguid, message)
         else:
             # No job in the context, do nothing
             pass
+        
+    def __eq__(self, other):
+        if not other:
+            return False
+        if not isinstance(other, WFLJobLogTarget):
+            return False
+
+        return True
+
+    def close(self):
+        pass
+    
