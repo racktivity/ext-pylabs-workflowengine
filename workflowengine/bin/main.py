@@ -44,7 +44,8 @@ def main():
         socket_task.setMessageHandler(_handle_message)
 
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
-        ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], config['hostname'], config['password'])
+        hostname = config['hostname'] if 'hostname' in config and config['hostname'] else config['xmppserver']
+        ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], hostname, config['password'])
     except Exception, e:
         q.logger.log("[SL_WFL] Initialization failed: " + str(e), 1)
         traceback.print_exc()
