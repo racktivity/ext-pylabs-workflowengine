@@ -25,6 +25,11 @@ initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.ini
 #LOAD THE TASKLETS OUTSIDE THE DISPATCH: 10 TIMES FASTER.
 q.workflowengine.actionmanager.init()
 
+def alog(*l):
+    f=file('/tmp/l','a')
+    f.write('%r\n'%l)
+    f.close()
+
 def main():
 
     try:
@@ -38,9 +43,9 @@ def main():
         socket_task = SocketTask(int(config['port']))
         def _handle_message(data):
             try:
-                q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
+                q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']))
                 ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
-                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
+                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']))
                 socket_task.sendData({'id':data['id'], 'error':False, 'return':ret})
             except Exception, e:
                 socket_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
@@ -68,7 +73,10 @@ def main():
         socket_task.start()
 
         drp_task.start()
+
+        alog("drp_task connectDRPClient PRE")
         drp_task.connectDRPClient(q.drp)
+        alog("drp_task connectDRPClient POST")
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)

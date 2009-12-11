@@ -5,20 +5,13 @@ from twisted.internet import protocol, reactor
 
 print "Init q"
 q,i=pymonkey._init.initialize(False)
-print "Init q done"
-
-from workflowengine.CloudAPIActionManager import WFLActionManager
 
 print "Init w"
+from workflowengine.CloudAPIActionManager import WFLActionManager
 w=WFLActionManager()
-print "Init w done"
 
-def do():
-    print "Call w"
-    #application.addAccount("","","","")
-    print w.startRootobjectAction('application', 'addAccount', {})
-    print "Call w done"
-
-reactor.callInThread(do)
-reactor.run()
-
+print "Call"
+print w.startRootobjectAction('application', 'addAccount', {})
+print w.startRootobjectAction('application', 'addAccount', {})
+print w.startRootobjectAction('application', 'addAccount', {})
+print w.startRootobjectAction('application', 'addAccount', {})
