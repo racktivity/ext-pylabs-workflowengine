@@ -146,6 +146,18 @@ class WFLActionManager():
             return { 'jobguid':jobguid, 'result':params.get('result')}
         elif msg.match(MSG_ACTION_EXCEPTION):
             raise args[0]
+        
+    def startRootobjectActionAsynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+        """
+        API compatibility with CloudAPIActionManager 
+        """
+        return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
+    
+    def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+        """
+        API compatibility with CloudAPIActionManager 
+        """
+        return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
 
     def waitForActions(self, jobguids):
         """
