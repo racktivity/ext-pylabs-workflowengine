@@ -40,14 +40,17 @@
 test:
 #	sudo rsync -rtvn --size-only ./apps/ /opt/qbase3/apps/
 #	sudo rsync -rtvn --size-only ./lib/ /opt/qbase3/lib/
+
 	sudo rsync -rtv ./apps/ /opt/qbase3/apps/
 	sudo rsync -rtv ./lib/ /opt/qbase3/lib/
+
 	sudo /opt/qbase3/qshell -c 'q.manage.applicationserver.stop()'
 	sudo /opt/qbase3/qshell -c 'q.manage.applicationserver.start()'
 	sudo /opt/qbase3/qshell -c 'q.manage.workflowengine.stop()'
 	sudo /opt/qbase3/qshell -c 'q.manage.workflowengine.start()'
+
 ##	sudo tail -f /opt/qbase3/var/log/workflowengine.stdout /opt/qbase3/var/log/workflowengine.stderr &
-#	sudo /opt/qbase3/qshell -c 'print i.config.cloudApiConnection.find("main").application.addAccount("","","","")'
+	sudo /opt/qbase3/qshell -c 'print i.config.cloudApiConnection.find("main").application.addAccount("","","","")'
 #	sudo /opt/qbase3/qshell
-	./test.py
+#	./test.py
 
