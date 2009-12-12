@@ -80,7 +80,7 @@ class WFLActionManager():
             raise ActionNotFoundException("ActorAction", actorname, actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or Tasklet.current().jobguid
-        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams)
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams, params=str(params))
         #START A NEW TASKLET FOR THE JOB
 
         q.workflowengine.jobmanager.startJob(jobguid)
@@ -131,7 +131,7 @@ class WFLActionManager():
             raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or (hasattr(Tasklet.current(), 'jobguid') and Tasklet.current().jobguid) or None
-        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams)
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams, params=str(params))
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
 
@@ -146,16 +146,16 @@ class WFLActionManager():
             return { 'jobguid':jobguid, 'result':params.get('result')}
         elif msg.match(MSG_ACTION_EXCEPTION):
             raise args[0]
-        
+
     def startRootobjectActionAsynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
-        API compatibility with CloudAPIActionManager 
+        API compatibility with CloudAPIActionManager
         """
         return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
-    
+
     def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
-        API compatibility with CloudAPIActionManager 
+        API compatibility with CloudAPIActionManager
         """
         return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
 

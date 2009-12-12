@@ -17,9 +17,9 @@ class WFLJobManager:
 
         self.__rootJobGuid_treejobs_mapping = {}
 
-    def createJob(self, parentjobguid, actionName, executionparams, agentguid=None):
+    def createJob(self, parentjobguid, actionName, executionparams, agentguid=None, params=""):
         parentjob = parentjobguid and self.__getJob(parentjobguid)
-        job = WFLJob(parentjob, actionName, executionparams, agentguid)
+        job = WFLJob(parentjob, actionName, executionparams, agentguid, params)
         # The ancestor (top of the jobtree) is used to perform refcount garbage collection on the stoppedJobs
         # We are certain no joins are possible when all jobs within a job tree are stopped.
         # The number of running (= non stopped) jobs is stored in the ancestor.
@@ -128,7 +128,7 @@ def getUnixTimestamp():
 
 class WFLJob:
 
-    def __init__(self, parentjob=None, actionName=None, executionparams={}, agentguid=None):
+    def __init__(self, parentjob=None, actionName=None, executionparams={}, agentguid=None, params=""):
         """
         Creates a new job in the DRP and returns an instance of WFLJob. The WFLJob contains a disconnected job object and adds extra functionality.
 
@@ -155,6 +155,7 @@ class WFLJob:
 
         self.drp_object.actionName = actionName
         self.drp_object.agentguid = agentguid
+        self.drp_object.params = params
 
         fillInExecutionparams(self.drp_object, executionparams)
         # TODO Should the below parameters be stored in OSIS ? -> required for delayed jobs !
