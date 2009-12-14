@@ -198,7 +198,7 @@ class WFLActionManager():
             self.__taskletEngine.execute(params, tags=tags, path=path)
         except Exception, e:
             q.workflowengine.jobmanager.setJobDied(jobguid, e)
-            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e))
+            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e,jobguid))
 
         else:
             q.workflowengine.jobmanager.setJobDone(jobguid, params.get('result'))
