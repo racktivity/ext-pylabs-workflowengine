@@ -28,7 +28,8 @@ class WFLJobLogTarget(object):
         else:
             # No job in the context, do nothing
             pass
-        
+        return True
+
     def __eq__(self, other):
         if not other:
             return False
@@ -39,4 +40,4 @@ class WFLJobLogTarget(object):
 
     def close(self):
         pass
-    
+
