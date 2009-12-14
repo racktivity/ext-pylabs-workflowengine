@@ -14,17 +14,17 @@ class WFLActionManager():
     def __init__(self):
         self.factory = YamlClientFactory(self._receivedData)
         config = i.config.workflowengine.getConfig('main')
-        
+
         def _do_connect():
             reactor.connectTCP('localhost', int(config['port']), self.factory)
         reactor.callInThread(_do_connect)
-        
+
         self.running = {}
-        
+
         self.idlock = threading.Lock()
         self.id = 0
-        
-        
+
+
         ###### For synchronous execution ##########
         from pymonkey.tasklets import TaskletsEngine
         self.__taskletEngine = TaskletsEngine()
@@ -49,32 +49,32 @@ class WFLActionManager():
         @raise ActionUnavailableException: always thrown
         '''
         raise ActionUnavailableException()
-        
+
     def startRootobjectAction(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
 
         # For backwards compatibility
         # If called not explicitely, wait for result
 	if not 'wait' in executionparams:
             executionparams['wait'] = True
-        
+
         return self.startRootobjectActionAsynchronous(rootobjectname, actionname, params, executionparams, jobguid)
-        
+
     def startRootobjectActionAsynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
         Send the root object action to the stackless workflowengine over a socket.
         The root object action will wait until the workflowengine returns a result.
         """
-        
-        # For backwards compatibility 
-        # If called explicitely, don't wait for result 
+
+        # For backwards compatibility
+        # If called explicitely, don't wait for result
         if not 'wait' in executionparams:
             executionparams['wait'] = False
-        
+
         self.idlock.acquire()
         my_id = self.id
         self.id += 1
         self.idlock.release()
-        
+
         my_lock = threading.Lock()
         self.running[my_id] = {'lock': my_lock}
         my_lock.acquire()
@@ -82,26 +82,26 @@ class WFLActionManager():
         my_lock.acquire()
         # Wait for receivedData to release the lock
         my_lock.release()
-        
+
         data = self.running.pop(my_id)
         if not data['error']:
             return data['return']
         else:
             raise data['exception']
-        
+
     def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
-        
+
         q.logger.log('>>> Executing startRootobjectActionSynchronous : %s %s %s' % (rootobjectname, actionname, params), 1)
-        
+
         if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
             raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
-        
+
         self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)
-        
-        result = {'jobguid': None, 'result': params['result']}
-        
+
+        result = {'jobguid': None, 'result': params.get('result', None)}
+
         q.logger.log('>>> startRootobjectActionSynchronous returns : %s ' % result, 1)
-        
+
         return result
 
 class ActionUnavailableException(Exception):
@@ -113,8 +113,8 @@ class YamlProtocol(protocol.Protocol):
     writelock = threading.Lock()
     delimiter = "\n---\n"
     buffer = ""
-    
-    
+
+
     def connectionMade(self):
         self.factory.instance = self
 
@@ -132,10 +132,10 @@ class YamlProtocol(protocol.Protocol):
                         q.logger.log("[CLOUDAPIActionManager] Socket received invalid message: " + str(message), 3)
                     else:
                         self.factory.receivedCallback(retdata)
-    
+
     def connectionLost(self, reason):
         self.factory.instance = None
-        
+
     def sendData(self, data):
         message = yaml.dump(data)
         message += "\n---\n"
@@ -146,23 +146,23 @@ class YamlProtocol(protocol.Protocol):
 class YamlClientFactory(protocol.ReconnectingClientFactory):
     protocol = YamlProtocol
     instance = None
-    
+
     maxDelay = 30 # If the connection is lost, the factory will try to reconnect: the max delay between reconnects.
 
     timeout = 5 # sendData waits a number of seconds before raising the not connected exception.
     sleepBetweenChecks = 0.5 # sendData will try to sleep a number of seconds between each check.
     maxAttempts = timeout/sleepBetweenChecks
-    
+
     def __init__(self, receivedCallback):
         self.receivedCallback = receivedCallback
-    
+
     def sendData(self, data):
-        # If a request for sendData is received: reset the reconnect timeout and retry 
+        # If a request for sendData is received: reset the reconnect timeout and retry
         if self.connector and self.connector.state == 'disconnected':
             self.stopTrying()
             self.resetDelay()
             self.retry()
-        
+
         # Let the sendData sleep if there is no connection.
         attempt = 0
         while not self.instance:
@@ -171,7 +171,7 @@ class YamlClientFactory(protocol.ReconnectingClientFactory):
             else:
                 time.sleep(self.sleepBetweenChecks)
                 attempt += 1
-        
+
         # Either the connection is made or the timeout is reached.
         if self.instance == None:
             raise Exception('Not connected to the stackless WFL.')
