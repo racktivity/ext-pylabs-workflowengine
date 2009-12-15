@@ -122,10 +122,10 @@ class WFLAgentController:
                 q.logger.log("Failed to kill Script '" + scriptpath + "' on agent '" + agentguid + "' for job '" + job.getJobGUID(), 1)
 
             q.workflowengine.jobmanager.setJobDied(jobguid, te)
-            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(te))
+            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(te,jobguid))
         except Exception, e:
             q.workflowengine.jobmanager.setJobDied(jobguid, e)
-            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e))
+            if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(e,jobguid))
         else:
             q.workflowengine.jobmanager.setJobDone(jobguid, params.get('result'))
             if wait is True: MSG_ACTION_RETURN.send(parentTasklet)({'jobguid':jobguid, 'result':params.get('result')})
