@@ -113,7 +113,7 @@ class _socketobject_new(_socketobject_old):
         sock = _fakesocket(sock)
         sock.wasConnected = True
         return _socketobject_new(_sock=sock), addr
-        
+
     accept.__doc__ = _socketobject_old.accept.__doc__
 
 
@@ -228,7 +228,7 @@ class _fakesocket(asyncore.dispatcher):
         else:
             flags = 0
             sendAddress = sendArg1
-            
+
         waitChannel = None
         for idx, (data, address, channel, sentBytes) in enumerate(self.sendToBuffers):
             if address == sendAddress:
@@ -241,7 +241,7 @@ class _fakesocket(asyncore.dispatcher):
         return waitChannel.receive()
 
     # Read at most byteCount bytes.
-    def recv(self, byteCount, flags=0):        
+    def recv(self, byteCount, flags=0):
         # recv() must not concatenate two or more data fragments sent with
         # send() on the remote side. Single fragment sent with single send()
         # call should be split into strings of length less than or equal
@@ -259,7 +259,7 @@ class _fakesocket(asyncore.dispatcher):
             # up the remaining input.  Observed this with urllib.urlopen
             # where it closes the socket and then allows the caller to
             # use a file to access the body of the web page.
-        elif not remainingBytes:            
+        elif not remainingBytes:
             self.readString = self.recvChannel.receive()
             self.readIdx = 0
             remainingBytes = len(self.readString)
@@ -324,6 +324,17 @@ class _fakesocket(asyncore.dispatcher):
         if self.socket.type != SOCK_DGRAM:
             self.wasConnected = True
             self.connectChannel.send(None)
+
+    def handle_connect_event(self):
+        err = self.socket.getsockopt(SOL_SOCKET, SO_ERROR)
+        if err != 0:
+            self.connected = False
+            Tasklet.new(self.recvChannel.send_exception)(stdsocket.error, err)
+        else:
+            self.handle_connect()
+            self.connected = True
+
+
 
     # Asyncore says its done but self.readBuffer may be non-empty
     # so can't close yet.  Do nothing and let 'recv' trigger the close.
