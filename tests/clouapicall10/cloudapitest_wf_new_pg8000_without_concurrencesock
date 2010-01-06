@@ -1,0 +1,18 @@
+/opt/qbase3/lib/python2.6/site-packages/IPython/Extensions/path.py:32: DeprecationWarning: the md5 module is deprecated; use hashlib instead
+  import sys, warnings, os, fnmatch, glob, shutil, codecs, md5                                            
+/opt/qbase3/lib/python2.6/site-packages/IPython/iplib.py:58: DeprecationWarning: the sets module is deprecated
+  from sets import Set
+1262799585.15
+{'jobguid': '6cdc1a06-5706-4418-8c32-121c2d10ad53', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': 'ffc71aa5-ef1c-40b4-9521-97062003f22e', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': 'b171ce4b-8ebd-4ea9-b071-4bbc2c16c065', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': '8ad2991e-5bca-4b5a-a303-5f04821f57bf', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': 'f6199f7e-9a56-4c5d-9d81-1b389ebdab2d', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': '7921fd29-f362-49c7-8196-b6427e4a59f3', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': '36de6734-92b3-4758-a900-1ae0fd19edd4', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': '0ae14a90-b386-4c34-8609-81405998ceeb', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': '11579f10-b9fa-4d31-b1f7-60516ac31b7b', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+{'jobguid': 'cdb77f23-fd51-461c-9906-66687bb0c2b9', 'result': ['fcd76bb5-0fcb-4abe-9ba4-b4b818e35cf2', 'aabbe00d-d4d4-4b30-a497-7e348dce831d']}
+1262799589.51
+time:  4.3611831665
+
