@@ -207,6 +207,10 @@ class WFLJob:
 
         self.drp_object.jobstatus = q.enumerators.jobstatus.DONE
         self.drp_object.endtime = datetime.now()
+        import ast
+        params = ast.literal_eval(self.drp_object.params)
+        params['result'] = result
+        self.drp_object.params = str(params)
         self.result = result
         self.commit_drp_object()
 
