@@ -208,9 +208,12 @@ class WFLJob:
         self.drp_object.jobstatus = q.enumerators.jobstatus.DONE
         self.drp_object.endtime = datetime.now()
         import ast
-        params = ast.literal_eval(self.drp_object.params)
-        params['result'] = result
-        self.drp_object.params = str(params)
+        try:
+            params = ast.literal_eval(self.drp_object.params)
+            params['result'] = result
+            self.drp_object.params = str(params)
+        except Exception, ex:
+            q.logger.log("Failed to parse params %s, Error: %s"%(self.drp_object.params, ex), 3)
         self.result = result
         self.commit_drp_object()
 
