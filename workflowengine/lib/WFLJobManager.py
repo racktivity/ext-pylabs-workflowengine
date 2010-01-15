@@ -213,7 +213,7 @@ class WFLJob:
             params['result'] = result
             self.drp_object.params = str(params)
         except Exception, ex:
-            q.logger.log("Failed to parse params %s, Error: %s"%(self.drp_object.params, ex), 3)
+            self.log("Failed to parse params %s, Error: %s"%(self.drp_object.params, ex), 3, 'workflowengine')
         self.result = result
         self.commit_drp_object()
 
