@@ -229,8 +229,7 @@ class WFLJob:
 
         self.drp_object.jobstatus = q.enumerators.jobstatus.ERROR
         self.drp_object.endtime = datetime.now()
-        if not isinstance(exception, WFLException):
-            self.log(str(exception), 1, "Exception occured")
+        self.log(str(exception), 1, "Exception occured")
         self.exception = exception
         self.commit_drp_object()
 
