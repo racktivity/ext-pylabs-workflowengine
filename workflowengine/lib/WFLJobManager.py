@@ -5,17 +5,39 @@ from time import mktime
 
 from workflowengine.Exceptions import JobNotRunningException, WFLException
 
+from workflowengine.SharedMemory import create_shm, close_shm, write_shm
+import stackless, yaml
+
 from concurrence import Tasklet, Message
 class MSG_JOB_FINISHED(Message): pass
 
 class WFLJobManager:
 
-    def __init__(self):
+    def __init__(self):        
         self.__waitingJobs = {}
         self.__runningJobs = {}
         self.__stoppedJobs = {}
 
         self.__rootJobGuid_treejobs_mapping = {}
+
+        self.__jobs_shm = create_shm("wfe-jobs", 4096)
+	self.__currentjob_shm = create_shm("wfe-current-job", 4096)
+	stackless.set_schedule_callback(self.scheduleHandler)
+	self.writeJobsToShm()
+
+    def scheduleHandler(self, fromm, to):
+        if (hasattr(to, "jobguid")):
+            write_shm(self.__currentjob_shm, to.jobguid)
+        else:
+            write_shm(self.__currentjob_shm, "Not in job")
+
+    def writeJobsToShm(self):
+        jobs = {}
+        for jobList in [ self.__waitingJobs, self.__runningJobs, self.__stoppedJobs ]:
+            for jobguid in jobList:
+                jdo = jobList[jobguid].drp_object
+                jobs[jobguid] = [ jdo.actionName, jdo.parentjobguid, jdo.jobstatus, jdo.starttime, jdo.agentguid ]
+        write_shm(self.__jobs_shm, yaml.dump(jobs) + "---\n")
 
     def createJob(self, parentjobguid, actionName, executionparams, agentguid=None, params=""):
         parentjob = parentjobguid and self.__getJob(parentjobguid)
@@ -28,6 +50,7 @@ class WFLJobManager:
         job.ancestor.runningJobsInTree += 1
         # TODO Waiting jobs should be stored in the action queue in OSIS
         self.__waitingJobs[job.drp_object.guid] = job
+        self.writeJobsToShm()
         return job.drp_object.guid
 
     def startJob(self, jobguid):
@@ -35,6 +58,7 @@ class WFLJobManager:
             job = self.__waitingJobs.pop(jobguid)
             self.__runningJobs[jobguid] = job
             job.start()
+            self.writeJobsToShm()
             # TODO Running jobs should be stored in the action queue in OSIS
         else:
             # TODO Check in OSIS if the job exists and if it is waiting: should be stored in the action queue
@@ -46,6 +70,7 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.done(result)
             self.__stoppedJob(job)
+            self.writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -56,6 +81,7 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.died(exception)
             self.__stoppedJob(job)
+            self.writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -69,6 +95,7 @@ class WFLJobManager:
             jobs = self.__rootJobGuid_treejobs_mapping.pop(job.ancestor.drp_object.guid)
             for job in jobs:
                 self.__stoppedJobs.pop(job.drp_object.guid)
+        self.writeJobsToShm()
 
     def appendJobLog(self, jobguid, logmessage, level=5, source=""):
         if jobguid in self.__runningJobs:
