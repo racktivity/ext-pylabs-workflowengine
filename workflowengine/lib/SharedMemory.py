@@ -16,9 +16,10 @@ def open_shm(name):
     memory.close_fd()
     return mapfile
 
-def close_shm(name, mapfile):
+def close_shm(name, mapfile, unlink=False):
     mapfile.close()
-    posix_ipc.unlink_shared_memory(name)
+    if unlink:
+        posix_ipc.unlink_shared_memory(name)
 
 def write_shm(mapfile, string):
     mapfile.seek(0)
