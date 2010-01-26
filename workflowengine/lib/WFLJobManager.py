@@ -25,8 +25,8 @@ class WFLJobManager:
         self.__initSharedMem()
     
     def __initSharedMem(self):
-        self.__jobs_shm = create_shm("wfe-jobs", 4096)
-        self.__currentjob_shm = create_shm("wfe-current-job", 4096)
+        self.__jobs_shm = create_shm("wfe-jobs", 524288)
+        self.__currentjob_shm = create_shm("wfe-current-job", 524288)
         stackless.set_schedule_callback(self.__scheduleHandler)
         self.__writeJobsToShm()
 
@@ -50,8 +50,10 @@ class WFLJobManager:
         # The ancestor (top of the jobtree) is used to perform refcount garbage collection on the stoppedJobs
         # We are certain no joins are possible when all jobs within a job tree are stopped.
         # The number of running (= non stopped) jobs is stored in the ancestor.
-        if job.isRootJob(): self.__rootJobGuid_treejobs_mapping[job.drp_object.guid] = [job]
-        else: self.__rootJobGuid_treejobs_mapping[job.ancestor.drp_object.guid].append(job)
+        if job.isRootJob(): 
+            self.__rootJobGuid_treejobs_mapping[job.drp_object.guid] = [job]
+        else: 
+            self.__rootJobGuid_treejobs_mapping[job.ancestor.drp_object.guid].append(job)
         job.ancestor.runningJobsInTree += 1
         # TODO Waiting jobs should be stored in the action queue in OSIS
         self.__waitingJobs[job.drp_object.guid] = job
@@ -148,7 +150,7 @@ class WFLJobManager:
 
     def killJob(self, jobguid):
         jobsToKill = self.__rootJobGuid_treejobs_mapping.get(jobguid)
-        if jobsToKill is None:
+        if jobsToKill is None:   
             raise Exception("Job %s not found." % jobguid)
         else:
             log = ""
