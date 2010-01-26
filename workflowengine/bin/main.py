@@ -25,6 +25,7 @@ initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.ini
 
 #LOAD THE TASKLETS OUTSIDE THE DISPATCH: 10 TIMES FASTER.
 q.workflowengine.actionmanager.init()
+q.workflowengine.jobmanager.init()
 
 def main():
 

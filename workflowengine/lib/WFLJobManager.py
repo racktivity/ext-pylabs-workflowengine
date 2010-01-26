@@ -14,6 +14,12 @@ class MSG_JOB_FINISHED(Message): pass
 
 class WFLJobManager:
 
+    def init(self):
+        '''
+        Does nothing: used to force pymonkey to create the q-tree mapping and initialize the shared memory.
+        '''
+        pass
+
     def __init__(self):        
         self.__waitingJobs = {}
         self.__runningJobs = {}
