@@ -7,7 +7,7 @@ from osis.client import OsisConnection
 from osis.store.OsisDB import OsisDB
 from osis.store.OsisFilterObject import OsisFilterObject
 
-class DRPClient():
+class DRPClient(object):
     '''
     The DRPClient is the only point of access to the OSIS database. All objects of DRPClient share the same state.
     '''
