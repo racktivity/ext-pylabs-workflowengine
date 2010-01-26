@@ -23,8 +23,10 @@ class WFLJobManager:
         # The ancestor (top of the jobtree) is used to perform refcount garbage collection on the stoppedJobs
         # We are certain no joins are possible when all jobs within a job tree are stopped.
         # The number of running (= non stopped) jobs is stored in the ancestor.
-        if job.isRootJob(): self.__rootJobGuid_treejobs_mapping[job.drp_object.guid] = [job]
-        else: self.__rootJobGuid_treejobs_mapping[job.ancestor.drp_object.guid].append(job)
+        if job.isRootJob(): 
+            self.__rootJobGuid_treejobs_mapping[job.drp_object.guid] = [job]
+        else: 
+            self.__rootJobGuid_treejobs_mapping[job.ancestor.drp_object.guid].append(job)
         job.ancestor.runningJobsInTree += 1
         # TODO Waiting jobs should be stored in the action queue in OSIS
         self.__waitingJobs[job.drp_object.guid] = job
