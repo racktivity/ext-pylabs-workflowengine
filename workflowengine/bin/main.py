@@ -15,6 +15,7 @@ from workflowengine.SocketServer import SocketTask
 from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
+from workflowengine.DebugInterface import DebugInterface
 
 import workflowengine.ConcurrenceSocket as ConcurrenceSocket
 ConcurrenceSocket.install()
@@ -24,6 +25,7 @@ initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.ini
 
 #LOAD THE TASKLETS OUTSIDE THE DISPATCH: 10 TIMES FASTER.
 q.workflowengine.actionmanager.init()
+q.workflowengine.jobmanager.init()
 
 def main():
 
@@ -46,6 +48,10 @@ def main():
                 socket_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
         socket_task.setMessageHandler(_handle_message)
 
+        debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
+        debugInterface = DebugInterface(debug_socket_task)
+        debug_socket_task.setMessageHandler(debugInterface.handleMessage)		
+
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
         hostname = config['hostname'] if 'hostname' in config and config['hostname'] else config['xmppserver']
         ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], hostname, config['password'])
@@ -66,6 +72,7 @@ def main():
 
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
         socket_task.start()
+        debug_socket_task.start()
 
         drp_task.start()
         drp_task.connectDRPClient(q.drp)

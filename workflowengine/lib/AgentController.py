@@ -103,7 +103,7 @@ class AgentController:
         @return: a dict with keys: 'params' and 'error', if 'error' == True: dict also contains 'errorcode' and 'erroroutput'
         '''
         if not self.__presenceList.is_available(agentguid):
-            self.__jobQueue.removeJob(jobguid)
+            self.__jobQueue.died(jobguid, agentguid, 1, "Agent was down when script was stopped by user.")
             raise AgentNotAvailableException(agentguid)
 
         self.__sendMessage(agentguid, 'stop', jobguid)
@@ -117,7 +117,7 @@ class AgentController:
         @return: a dict with keys: 'params' and 'error', if 'error' == True: dict also contains 'errorcode' and 'erroroutput'
         '''
         if not self.__presenceList.is_available(agentguid):
-            self.__jobQueue.removeJob(jobguid)
+            self.__jobQueue.died(jobguid, agentguid, 1, "Agent was down when script was killed by user.")
             raise AgentNotAvailableException(agentguid)
 
         self.__sendMessage(agentguid, 'kill', jobguid)
@@ -143,6 +143,7 @@ class AgentController:
         try:
             self.__jobQueue.waitForJobToFinish(jobguid, timeout)
         except TimeOutException:
+            acjob = self.__jobQueue.removeJob(jobguid)
             raise
         else:
             acjob = self.__jobQueue.removeJob(jobguid)

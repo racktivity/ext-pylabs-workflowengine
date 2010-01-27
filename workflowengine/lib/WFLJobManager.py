@@ -5,17 +5,50 @@ from time import mktime
 
 from workflowengine.Exceptions import JobNotRunningException, WFLException
 
+from workflowengine.SharedMemory import create_shm, close_shm, write_shm
+import stackless, yaml
+import traceback
+
 from concurrence import Tasklet, Message
 class MSG_JOB_FINISHED(Message): pass
 
 class WFLJobManager:
 
-    def __init__(self):
+    def init(self):
+        '''
+        Does nothing: used to force pymonkey to create the q-tree mapping and initialize the shared memory.
+        '''
+        pass
+
+    def __init__(self):        
         self.__waitingJobs = {}
         self.__runningJobs = {}
         self.__stoppedJobs = {}
-
+        
+        self.__killedJobs = {}
         self.__rootJobGuid_treejobs_mapping = {}
+
+        self.__initSharedMem()
+    
+    def __initSharedMem(self):
+        self.__jobs_shm = create_shm("wfe-jobs", 524288)
+        self.__currentjob_shm = create_shm("wfe-current-job", 524288)
+        stackless.set_schedule_callback(self.__scheduleHandler)
+        self.__writeJobsToShm()
+
+    def __scheduleHandler(self, fromm, to):
+        if (hasattr(to, "jobguid")):
+            write_shm(self.__currentjob_shm, to.jobguid)
+        else:
+            write_shm(self.__currentjob_shm, "Not in job")
+
+    def __writeJobsToShm(self):
+        jobs = {}
+        for jobList in [ self.__waitingJobs, self.__runningJobs, self.__stoppedJobs ]:
+            for jobguid in jobList:
+                jdo = jobList[jobguid].drp_object
+                jobs[jobguid] = [ jdo.actionName, jdo.parentjobguid, jdo.jobstatus, jdo.starttime, jdo.agentguid ]
+        write_shm(self.__jobs_shm, yaml.dump(jobs) + "---\n")
 
     def createJob(self, parentjobguid, actionName, executionparams, agentguid=None, params=""):
         parentjob = parentjobguid and self.__getJob(parentjobguid)
@@ -30,6 +63,7 @@ class WFLJobManager:
         job.ancestor.runningJobsInTree += 1
         # TODO Waiting jobs should be stored in the action queue in OSIS
         self.__waitingJobs[job.drp_object.guid] = job
+        self.__writeJobsToShm()
         return job.drp_object.guid
 
     def startJob(self, jobguid):
@@ -37,6 +71,7 @@ class WFLJobManager:
             job = self.__waitingJobs.pop(jobguid)
             self.__runningJobs[jobguid] = job
             job.start()
+            self.__writeJobsToShm()
             # TODO Running jobs should be stored in the action queue in OSIS
         else:
             # TODO Check in OSIS if the job exists and if it is waiting: should be stored in the action queue
@@ -48,6 +83,7 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.done(result)
             self.__stoppedJob(job)
+            self.__writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -58,6 +94,7 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.died(exception)
             self.__stoppedJob(job)
+            self.__writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -71,6 +108,9 @@ class WFLJobManager:
             jobs = self.__rootJobGuid_treejobs_mapping.pop(job.ancestor.drp_object.guid)
             for job in jobs:
                 self.__stoppedJobs.pop(job.drp_object.guid)
+                if self.__killedJobs.has_key(job.drp_object.guid):
+                    self.__killedJobs.pop(job.drp_object.guid)
+        self.__writeJobsToShm()
 
     def appendJobLog(self, jobguid, logmessage, level=5, source=""):
         if jobguid in self.__runningJobs:
@@ -113,6 +153,27 @@ class WFLJobManager:
             MSG_JOB_FINISHED.send(tasklet)(job.drp_object.guid, 'DONE', job.result)
         elif job.drp_object.jobstatus is q.enumerators.jobstatus.ERROR:
             MSG_JOB_FINISHED.send(tasklet)(job.drp_object.guid, 'ERROR', job.exception)
+
+    def killJob(self, jobguid):
+        jobsToKill = self.__rootJobGuid_treejobs_mapping.get(jobguid)
+        if jobsToKill is None:   
+            raise Exception("Job %s not found." % jobguid)
+        else:
+            log = ""
+            for job in jobsToKill:
+                self.__killedJobs[job.drp_object.guid] = True
+            
+            for job in jobsToKill:
+                if job.drp_object.agentguid is not None:
+                    log += ("Killing %s\n") % job.drp_object.guid
+                    try:
+                        q.workflowengine.agentcontroller.killScript(job.drp_object.agentguid, job.drp_object.guid, 1)
+                    except:
+                        log += traceback.format_exc() + "\n"
+            return log
+    
+    def isKilled(self, jobguid):
+        return self.__killedJobs.get(jobguid) is True
 
 
 def inheritFromParent(childjob, parentjob):
@@ -165,6 +226,8 @@ class WFLJob:
         self.timetostart = executionparams.get('timetostart')
         self.priority = executionparams.get('priority')
         self.jobFinishedCallbacks = []
+        
+        self.kill = False
 
         self.commit_drp_object()
 

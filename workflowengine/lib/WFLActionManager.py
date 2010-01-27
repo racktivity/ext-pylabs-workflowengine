@@ -80,6 +80,9 @@ class WFLActionManager():
             raise ActionNotFoundException("ActorAction", actorname, actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or Tasklet.current().jobguid
+        if q.workflowengine.jobmanager.isKilled(currentjobguid):
+           raise Exception("Can't create child jobs: the job is killed !")
+        
         params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams, params=str(params))
         #START A NEW TASKLET FOR THE JOB
 
@@ -131,6 +134,9 @@ class WFLActionManager():
             raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or (hasattr(Tasklet.current(), 'jobguid') and Tasklet.current().jobguid) or None
+        if q.workflowengine.jobmanager.isKilled(currentjobguid):
+           raise Exception("Can't create child jobs: the job is killed !")
+        
         params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams, params=str(params))
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
