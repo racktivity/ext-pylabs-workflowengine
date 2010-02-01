@@ -1,6 +1,6 @@
 from pymonkey import q
 
-from workflowengine.Exceptions import ActionNotFoundException, WFLException, TimeOutException
+from workflowengine.Exceptions import ActionNotFoundException, WFLException, TimeOutException,ScriptFailedException
 from workflowengine.WFLActionManager import ActorActionTaskletPath
 
 from concurrence import Tasklet, Message
@@ -55,8 +55,8 @@ class WFLAgentController:
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or Tasklet.current().jobguid
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
-           raise Exception("Can't create child jobs: the job is killed !")
-        
+            raise Exception("Can't create child jobs: the job is killed !")
+
         params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actionname, executionparams, agentguid, params=str(params))
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
@@ -122,10 +122,11 @@ class WFLAgentController:
             params = self.__agentController.executeScript(agentguid, jobguid, scriptpath, params)
         except TimeOutException, te:
             try:
-                self.__agentController.killScript(agentguid, job.getJobGUID(), 10)
+                self.__agentController.killScript(agentguid, jobguid, 10)
             except TimeOutException:
-                q.logger.log("Failed to kill Script '" + scriptpath + "' on agent '" + agentguid + "' for job '" + job.getJobGUID(), 1)
-
+                q.logger.log("Failed to kill Script '" + scriptpath + "' on agent '" + agentguid + "' for job '" + jobguid, 1)
+            except ScriptFailedException:
+                q.logger.log("Failed to execute Script '" + scriptpath + "' on agent '" + agentguid + "' for job '" + jobguid, 1)
             q.workflowengine.jobmanager.setJobDied(jobguid, te)
             if wait is True: MSG_ACTION_EXCEPTION.send(parentTasklet)(WFLException.create(te,jobguid))
         except Exception, e:
