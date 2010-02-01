@@ -143,7 +143,6 @@ class AgentController:
         try:
             self.__jobQueue.waitForJobToFinish(jobguid, timeout)
         except TimeOutException:
-            acjob = self.__jobQueue.removeJob(jobguid)
             raise
         else:
             acjob = self.__jobQueue.removeJob(jobguid)
