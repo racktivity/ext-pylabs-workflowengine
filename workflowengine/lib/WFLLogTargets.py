@@ -5,7 +5,7 @@ from concurrence import Tasklet
 class WFLJobLogTarget(object):
 
     def __init__(self):
-        self.maxVerbosityLevel = 5
+        self.maxlevel = 5
         self.enabled = True
 
     def checkTarget(self):
