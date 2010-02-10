@@ -3,6 +3,7 @@ from socket import *
 from workflowengine.SharedMemory import open_shm, close_shm, write_shm
 from workflowengine.WFLJobManager import WFLJobManager
 import yaml
+import ast
 import posix_ipc
 
 class WFEDebug:
@@ -33,9 +34,9 @@ class WFEDebug:
                     s.close()
                     return response
                 except yaml.parser.ParserError:
-                    raise    
-        
-    
+                    raise
+
+
     def _getJobDetail(self, sharedMemoryName):
         # if no  jobs -> no sharedmemory in use -> throws an exception. Return an empty list
         jobinfo = []
@@ -44,7 +45,7 @@ class WFEDebug:
             print jobs
         except posix_ipc.ExistentialError:
             print 'Nothing'
-            return jobinfo 
+            return jobinfo
 
         jobs.seek(0)
         jobs_string = ""
@@ -53,16 +54,6 @@ class WFEDebug:
             jobs_string += line
             line = jobs.readline()
         close_shm(sharedMemoryName, jobs, False)
-        jobs_content = yaml.load(jobs_string)
-        for jobguid in jobs_content:
-           jobdetail = {}
-           job = jobs_content[jobguid]
-           jobdetail['guid'] = jobguid
-           jobdetail['actionname'] = str(job[0])
-           jobdetail['parentjobguid'] = str(job[1])
-           jobdetail['jobstatus'] = str(job[2])
-           jobdetail['starttime'] = str(job[3])
-           jobdetail['agentguid'] = str(job[4])
-           jobinfo.append(jobdetail)
+        jobinfo = ast.literal_eval(jobs_string)
 
-        return jobinfo
+        return jobinfo.values()

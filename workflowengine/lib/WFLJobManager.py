@@ -20,16 +20,19 @@ class WFLJobManager:
         '''
         pass
 
-    def __init__(self):        
+    def __init__(self):
         self.__waitingJobs = {}
         self.__runningJobs = {}
         self.__stoppedJobs = {}
-        
+
         self.__killedJobs = {}
         self.__rootJobGuid_treejobs_mapping = {}
+        self.enable_debug = False
 
+    def initializeDebugging(self):
+        self.enable_debug = True
         self.__initSharedMem()
-    
+
     def __initSharedMem(self):
         self.__jobs_shm = create_shm("wfe-jobs", 524288)
         self.__currentjob_shm = create_shm("wfe-current-job", 524288)
@@ -47,8 +50,8 @@ class WFLJobManager:
         for jobList in [ self.__waitingJobs, self.__runningJobs, self.__stoppedJobs ]:
             for jobguid in jobList:
                 jdo = jobList[jobguid].drp_object
-                jobs[jobguid] = [ jdo.actionName, jdo.parentjobguid, jdo.jobstatus, jdo.starttime, jdo.agentguid ]
-        write_shm(self.__jobs_shm, yaml.dump(jobs) + "---\n")
+                jobs[jobguid] = {'guid':jobguid, 'actionname': jdo.actionName, 'parentjobguid':jdo.parentjobguid, 'jobstatus':str(jdo.jobstatus), 'starttime':str(jdo.starttime), 'agentguid':jdo.agentguid }
+        write_shm(self.__jobs_shm, str(jobs)+"\n---\n")
 
     def createJob(self, parentjobguid, actionName, executionparams, agentguid=None, params=""):
         parentjob = parentjobguid and self.__getJob(parentjobguid)
@@ -56,14 +59,14 @@ class WFLJobManager:
         # The ancestor (top of the jobtree) is used to perform refcount garbage collection on the stoppedJobs
         # We are certain no joins are possible when all jobs within a job tree are stopped.
         # The number of running (= non stopped) jobs is stored in the ancestor.
-        if job.isRootJob(): 
+        if job.isRootJob():
             self.__rootJobGuid_treejobs_mapping[job.drp_object.guid] = [job]
-        else: 
+        else:
             self.__rootJobGuid_treejobs_mapping[job.ancestor.drp_object.guid].append(job)
         job.ancestor.runningJobsInTree += 1
         # TODO Waiting jobs should be stored in the action queue in OSIS
         self.__waitingJobs[job.drp_object.guid] = job
-        self.__writeJobsToShm()
+        if self.enable_debug:self.__writeJobsToShm()
         return job.drp_object.guid
 
     def startJob(self, jobguid):
@@ -71,7 +74,7 @@ class WFLJobManager:
             job = self.__waitingJobs.pop(jobguid)
             self.__runningJobs[jobguid] = job
             job.start()
-            self.__writeJobsToShm()
+            if self.enable_debug:self.__writeJobsToShm()
             # TODO Running jobs should be stored in the action queue in OSIS
         else:
             # TODO Check in OSIS if the job exists and if it is waiting: should be stored in the action queue
@@ -83,7 +86,7 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.done(result)
             self.__stoppedJob(job)
-            self.__writeJobsToShm()
+            if self.enable_debug:self.__writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -94,7 +97,7 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.died(exception)
             self.__stoppedJob(job)
-            self.__writeJobsToShm()
+            if self.enable_debug:self.__writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -110,7 +113,7 @@ class WFLJobManager:
                 self.__stoppedJobs.pop(job.drp_object.guid)
                 if self.__killedJobs.has_key(job.drp_object.guid):
                     self.__killedJobs.pop(job.drp_object.guid)
-        self.__writeJobsToShm()
+        if self.enable_debug:self.__writeJobsToShm()
 
     def appendJobLog(self, jobguid, logmessage, level=5, source=""):
         if jobguid in self.__runningJobs:
@@ -156,13 +159,13 @@ class WFLJobManager:
 
     def killJob(self, jobguid):
         jobsToKill = self.__rootJobGuid_treejobs_mapping.get(jobguid)
-        if jobsToKill is None:   
+        if jobsToKill is None:
             raise Exception("Job %s not found." % jobguid)
         else:
             log = ""
             for job in jobsToKill:
                 self.__killedJobs[job.drp_object.guid] = True
-            
+
             for job in jobsToKill:
                 if job.drp_object.agentguid is not None:
                     log += ("Killing %s\n") % job.drp_object.guid
@@ -171,7 +174,7 @@ class WFLJobManager:
                     except:
                         log += traceback.format_exc() + "\n"
             return log
-    
+
     def isKilled(self, jobguid):
         return self.__killedJobs.get(jobguid) is True
 
@@ -226,7 +229,7 @@ class WFLJob:
         self.timetostart = executionparams.get('timetostart')
         self.priority = executionparams.get('priority')
         self.jobFinishedCallbacks = []
-        
+
         self.kill = False
 
         self.commit_drp_object()

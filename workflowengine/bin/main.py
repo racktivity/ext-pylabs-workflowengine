@@ -30,11 +30,12 @@ q.workflowengine.jobmanager.init()
 def main():
 
     try:
+        config = i.config.workflowengine.getConfig('main')
+        enable_debug = config['enable_debug'] == 'True' if 'enable_debug' in config else False
+
         #INITIALIZE THE APPLICATION
         q.logger.logTargetAdd(WFLJobLogTarget())
         #q.logger.logTargetAdd(LogTargetScribe())
-
-        config = i.config.workflowengine.getConfig('main')
 
         #INITIALIZE THE TASKS
         socket_task = SocketTask(int(config['port']))
@@ -48,9 +49,11 @@ def main():
                 socket_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
         socket_task.setMessageHandler(_handle_message)
 
-        debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
-        debugInterface = DebugInterface(debug_socket_task)
-        debug_socket_task.setMessageHandler(debugInterface.handleMessage)		
+        if enable_debug:
+            debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
+            debugInterface = DebugInterface(debug_socket_task)
+            debug_socket_task.setMessageHandler(debugInterface.handleMessage)
+            q.workflowengine.jobmanager.initializeDebugging()
 
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
         hostname = config['hostname'] if 'hostname' in config and config['hostname'] else config['xmppserver']
@@ -72,7 +75,7 @@ def main():
 
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
         socket_task.start()
-        debug_socket_task.start()
+        if enable_debug:debug_socket_task.start()
 
         drp_task.start()
         drp_task.connectDRPClient(q.drp)
