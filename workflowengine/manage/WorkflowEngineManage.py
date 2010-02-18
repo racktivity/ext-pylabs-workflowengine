@@ -41,7 +41,7 @@ class WorkflowEngineManage:
                         print "Workflowengine started"
                     else:
                         print "INITIALIZATION FAILED, WORKFLOWENGINE NOT STARTED !"
-                        print "  " + q.system.fs.fileGetContents(self.stdoutFile).replace("\n", "\n  ")
+                        print "  " + q.system.fs.fileGetContents(self.stderrFile).replace("\n", "\n  ")
 
     def stop(self):
         """
