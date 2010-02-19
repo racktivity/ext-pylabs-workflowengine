@@ -1,5 +1,6 @@
 import yaml, threading, time
 from twisted.internet import protocol, reactor
+from workflowengine.Exceptions import ActionNotFoundException
 
 from pymonkey import q, i
 
@@ -27,14 +28,19 @@ class WFLActionManager():
 
         ###### For synchronous execution ##########
         from pymonkey.tasklets import TaskletsEngine
-        self.__taskletEngine = TaskletsEngine()
-        ##create tasklets dir if it doesnt exist
-        if not q.system.fs.exists(ActorActionTaskletPath):
-            q.system.fs.createDir(ActorActionTaskletPath)
-        self.__taskletEngine.addFromPath(ActorActionTaskletPath)
-        if not q.system.fs.exists(RootobjectActionTaskletPath):
-            q.system.fs.createDir(RootobjectActionTaskletPath)
-        self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
+	try:
+	    self.__taskletEngine = TaskletsEngine()
+	    ##create tasklets dir if it doesnt exist
+	    if not q.system.fs.exists(ActorActionTaskletPath):
+		q.system.fs.createDir(ActorActionTaskletPath)
+	    self.__taskletEngine.addFromPath(ActorActionTaskletPath)
+	    if not q.system.fs.exists(RootobjectActionTaskletPath):
+		q.system.fs.createDir(RootobjectActionTaskletPath)
+	    self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
+	    self.__engineLoaded = True
+	except Exception, ex:
+	    self.__engineLoaded = False
+	    self.__error = ex
         ###### /For synchronous execution ##########
 
     def _receivedData(self, data):
@@ -92,6 +98,9 @@ class WFLActionManager():
     def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
 
         q.logger.log('>>> Executing startRootobjectActionSynchronous : %s %s %s' % (rootobjectname, actionname, params), 1)
+
+	if not self.__engineLoaded:
+	    raise Exception(self.__error)
 
         if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
             raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
