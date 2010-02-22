@@ -213,17 +213,20 @@ class WFLJob:
         self.ancestor = self
         self.runningJobsInTree = 0
 
+        fillInExecutionparams(self.drp_object, executionparams)
+
         if parentjob:
             self.drp_object.parentjobguid = parentjob.drp_object.guid
             self.drp_object.order = WFLJob.getNextChildOrder(parentjob.drp_object.guid)
             #inheritFromParent(self.drp_object, parentjob.drp_object)
             self.ancestor = parentjob.ancestor
+            #inherit the clouduserguid from parent job if not already set
+            self.drp_object.clouduserguid = self.drp_object.clouduserguid or parentjob.drp_object.clouduserguid
 
         self.drp_object.actionName = actionName
         self.drp_object.agentguid = agentguid
         self.drp_object.params = params
 
-        fillInExecutionparams(self.drp_object, executionparams)
         # TODO Should the below parameters be stored in OSIS ? -> required for delayed jobs !
         self.wait = True if executionparams.get('wait') is None else executionparams.get('wait')
         self.timetostart = executionparams.get('timetostart')
