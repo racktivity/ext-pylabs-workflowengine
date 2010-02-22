@@ -11,7 +11,7 @@ q.application.appname = "workflowengine"
 from concurrence import Tasklet, Message, dispatch
 
 from workflowengine.DRPClient import DRPTask
-from workflowengine.SocketServer import SocketTask
+from workflowengine.AMQPInterface import AMQPTask
 from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
@@ -38,16 +38,16 @@ def main():
         #q.logger.logTargetAdd(LogTargetScribe())
 
         #INITIALIZE THE TASKS
-        socket_task = SocketTask(int(config['port']))
+        amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/")
         def _handle_message(data):
             try:
                 q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
                 ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
                 q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
-                socket_task.sendData({'id':data['id'], 'error':False, 'return':ret})
+                amqp_task.sendData({'id':data['id'], 'error':False, 'return':ret})
             except Exception, e:
-                socket_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
-        socket_task.setMessageHandler(_handle_message)
+                amqp_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
+        amqp_task.setMessageHandler(_handle_message)
 
         if enable_debug:
             debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
@@ -69,12 +69,12 @@ def main():
         #SETUP THE SIGNAL HANDLER: CLOSE THE SOCKET ON EXIT
         def sigterm_received():
             q.logger.log('Received SIGTERM: shutting down.')
-            socket_task.stop()
+            amqp_task.stop()
             sys.exit(-SIGTERM)
         signal(SIGTERM, lambda signum, stack_frame: sigterm_received())
 
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
-        socket_task.start()
+        amqp_task.start()
         if enable_debug:debug_socket_task.start()
 
         drp_task.start()
@@ -87,3 +87,4 @@ def main():
 
 if __name__=='__main__':
     dispatch(main)
+
