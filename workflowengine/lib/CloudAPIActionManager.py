@@ -1,21 +1,26 @@
-import yaml, time
+import yaml, time, traceback
 
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet import reactor, defer
 from twisted.internet.protocol import ClientCreator
+from twisted.internet.error import ConnectionRefusedError
 
 from txamqp.protocol import AMQClient
-from txamqp.client import TwistedDelegate
+from txamqp.client import TwistedDelegate, Closed 
 from txamqp.content import Content
 import txamqp.spec
 
 from workflowengine.Exceptions import ActionNotFoundException
+from workflowengine.QueueInfrastructure import AMQPAbstraction, QueueInfrastructure
 
 from pymonkey import q, i
 
 ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
 ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
 RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
+
+appserver_return_guid = "abc" # TODO Should be a generated GUID
+APPSERVER_CONSUMER_TAG = "app_tag"
 
 class WFLActionManager():
     """
@@ -131,15 +136,54 @@ class AMQPInterface():
 
     @inlineCallbacks
     def connect(self):
-        self.connection = yield ClientCreator(reactor, AMQClient, delegate=TwistedDelegate(), vhost=self.vhost, spec=self.spec).connectTCP(self.host, self.port)
-        yield self.connection.authenticate(self.username, self.password)
-        q.logger.log("[CLOUDAPIActionManager] txAMQP authenticated. Ready to receive messages")
-        self.channel = yield self.connection.channel(1)
-        yield self.channel.channel_open()
-        yield self.channel.basic_consume(queue='out_q', no_ack=True, consumer_tag="returnqueue") # TODO Which queue to read from ?
-        self.queue = yield self.connection.queue("returnqueue")
-        self.queue.get().addCallback(self.__gotMessage)
+        try:
+            self.connection = yield ClientCreator(reactor, AMQClient, delegate=TwistedDelegate(), vhost=self.vhost, spec=self.spec).connectTCP(self.host, self.port)
+            yield self.connection.authenticate(self.username, self.password)
+        except ConnectionRefusedError:
+            q.logger.log("[CLOUDAPIActionManager] Problem while connecting with RabbitMQ... Trying again in 10 seconds.")
+            reactor.callLater(10, self.connect)
+        except Closed:
+            q.logger.log("[CLOUDAPIActionManager] Problem while connecting with RabbitMQ... Trying again in 10 seconds.")
+            reactor.callLater(10, self.connect)
+        else:
+            q.logger.log("[CLOUDAPIActionManager] txAMQP authenticated.")
+            self.channel = yield self.connection.channel(1)
+            yield self.channel.channel_open()
+            
+            # The make_serial function was created in order to make a generic QueueInfrastructure.
+            deferreds = []
+            def make_serial(function):
+                # Input: function that returns deferred
+                # Output: function that doesn't call input function directly but serializes it:
+                #         the first function that is executed will launch if deferreds[0].callback is called,
+                #         the second function will launch if the first function is done, and so on
+                # Note: the user has to append a final callback to deferreds, this will be called if the last function is done executing
+                def new_func(*args, **kwargs):
+                    index = len(deferreds)
+                    deferreds.append(defer.Deferred())
+                    def to_be_called(dummy):
+                        function(*args, **kwargs).addCallback(lambda x: deferreds[index+1].callback(None))
+                    deferreds[index].addCallback(to_be_called)
+                return new_func
+            
+            amqpAbstraction = AMQPAbstraction(make_serial(self.channel.queue_declare), make_serial(self.channel.exchange_declare), make_serial(self.channel.queue_bind))
+            queueInfrastructure = QueueInfrastructure(amqpAbstraction)
+            queueInfrastructure.createBasicInfrastructure()
+            queueInfrastructure.createAppserverReturnQueue(appserver_return_guid)
+            self.returnQueueName = queueInfrastructure.getAppserverReturnQueueName(appserver_return_guid)
+            
+            deferreds.append(defer.Deferred())
+            deferreds[-1].addCallback(self.__initialized)
+            # All deferreds are created and will be serialized: set everything in motion !
+            deferreds[0].callback(None)
     
+    @inlineCallbacks
+    def __initialized(self, ret):
+        yield self.channel.basic_consume(queue=self.returnQueueName, no_ack=True, consumer_tag=APPSERVER_CONSUMER_TAG)
+        self.queue = yield self.connection.queue(APPSERVER_CONSUMER_TAG)
+        self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
+        q.logger.log("[CLOUDAPIActionManager] txAMQP initialized. Ready to receive messages.")
+        
     def __gotMessage(self, msg):
         try:
             retdata = yaml.load(msg.content.body) # TODO Implement your favorite messaging format here
@@ -147,15 +191,19 @@ class AMQPInterface():
         except yaml.parser.ParserError:
             q.logger.log("[CLOUDAPIActionManager] txAMQP received invalid message: " + str(message), 3)
         finally:
-            self.queue.get().addCallback(self.__gotMessage)
+            self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
+
+    def __lostConnection(self, exception):
+        q.logger.log("[CLOUDAPIActionManager] Connection with RabbitMQ was lost... Trying again in 10 seconds.")
+        self.connection = None
+        reactor.callLater(10, self.connect)
 
     def sendMessage(self, data):
-        #TODO We should check if the connection is still open, etc.
-        if not hasattr(self, "connection"):
+        if not hasattr(self, "connection") or self.connection is None:
             raise Exception("txAMQP has no connection...")
-        
+
+        data['return_guid'] = appserver_return_guid 
         message = Content(yaml.dump(data)) # TODO Implement your favorite messaging format here
-        message["delivery mode"] = 2
         q.logger.log("[CLOUDAPIActionManager] txAMQP is sending the message " + str(data))
-        self.channel.basic_publish(exchange="in_x", content=message, routing_key="test") # TODO Which queue to write to ?
-        
+        ret = self.channel.basic_publish(exchange=QueueInfrastructure.WFE_RPC_EXCHANGE, content=message)
+

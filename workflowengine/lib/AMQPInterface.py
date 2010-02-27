@@ -3,12 +3,14 @@ from pymonkey import q
 from concurrence import Tasklet, Message
 
 from amqplib import client_0_8 as amqp
+from workflowengine.QueueInfrastructure import AMQPAbstraction, QueueInfrastructure
 
-import yaml
-import traceback
+import yaml, socket
 
 class MSG_SOCKET_SEND(Message): pass
 class MSG_SOCKET_CLOSE(Message): pass
+ 
+WFE_CONSUMER_TAG = "wfe_tag"
 
 class AMQPTask:
     '''
@@ -19,27 +21,10 @@ class AMQPTask:
     '''
     
     def __init__(self, host, port, username, password, vhost):
-        # TODO Figure out the exception handling for AMQPlib, what happens if RabbitMQ is not available etc.
-        self.connection = amqp.Connection(host=host+":"+str(port), userid=username, password=password, virtual_host=vhost, insist=False, useConcurrence=True)
-        self.channel = self.connection.channel()
-        self.__setupAMQP()
+        (self.host, self.port, self.username, self.password, self.vhost) = (host, port, username, password, vhost)
         self.__receiving_tasklet = None
         self.__sending_tasklet = None
-    
-    def __setupAMQP(self):
-        q.logger.log("[AMQPTask] Setting up AMQP queues.", 3)
-        print "[AMQPTask] Setting up AMQP queues."
         
-        # First we setup the input queue and exchange
-        self.channel.queue_declare(queue="in_q", durable=False, exclusive=False, auto_delete=False)
-        self.channel.exchange_declare(exchange="in_x", type="direct", durable=False, auto_delete=False)
-        self.channel.queue_bind(queue="in_q", exchange="in_x")
-
-        # Then we setup the output queue and exchange
-        self.channel.queue_declare(queue="out_q", durable=False, exclusive=False, auto_delete=False)
-        self.channel.exchange_declare(exchange="out_x", type="direct", durable=False, auto_delete=False)
-        self.channel.queue_bind(queue="out_q", exchange="out_x")
-    
     def setMessageHandler(self, messageHandler):
         '''
         Set the callback that will be called when a message is received. The callback will be passed a dictionary.
@@ -48,24 +33,50 @@ class AMQPTask:
     
     def start(self):
         ''' Start the task: start the two tasklets. '''
-        self.__receiving_tasklet = Tasklet.new(self.__receive)()
-        self.__sending_tasklet = Tasklet.new(self.__send)()
+        self.__receiving_tasklet = Tasklet.new(self.__run)()
+        
+    def __run(self):
+        while True:
+            try:
+                q.logger.log("[AMQPTask] Tyring to connect to RabbitMQ", 3)
+                self.connection = amqp.Connection(host=self.host+":"+str(self.port), userid=self.username, password=self.password, virtual_host=self.vhost, insist=False, useConcurrence=True)
+                # Successfully connected
+                self.channel = self.connection.channel()
+                # Setup the basic infrastructure
+                amqpAbstraction = AMQPAbstraction(self.channel.queue_declare, self.channel.exchange_declare, self.channel.queue_bind)
+                QueueInfrastructure(amqpAbstraction).createBasicInfrastructure()
+                
+                self.__sending_tasklet = Tasklet.new(self.__send)()
+                self.__receive()
+            except IOError:
+                #This error is raised if the connection was refused or abruptly closed
+                q.logger.log("[AMQPTask] Connection with RabbitMQ was refused or abruptly close... Sleeping 10 seconds before reconnect.", 3)
+                if self.__sending_tasklet is not None:
+                    MSG_SOCKET_CLOSE.send(self.__sending_tasklet)()
+                    self.__sending_tasklet = None
+                Tasklet.sleep(10)
+            except amqp.exceptions.AMQPException:
+                #This exception is raised if the connection was closed correctly
+                q.logger.log("[AMQPTask] Connection with RabbitMQ was closed correctly... Sleeping 10 seconds before reconnect.", 3)
+                if self.__sending_tasklet is not None:
+                    MSG_SOCKET_CLOSE.send(self.__sending_tasklet)()
+                    self.__sending_tasklet = None
+                Tasklet.sleep(10)
     
-    def sendData(self, data):
+    def sendData(self, return_guid, data):
         '''
         Send data to the queue.
         @param data: the data to send
         @raise Exception: if no client is connected
         '''
         if self.__sending_tasklet == None:
-            q.logger.log("[AMQPTask] No connection to client, can't send the message.", 1)
-            print "[AMQPTask] No connection to client, can't send the message."
+            q.logger.log("[AMQPTask] No connection to AMQP, can't send the message.", 1)
             raise Exception("No connection to client, can't send the message.")
         else:
-            MSG_SOCKET_SEND.send(self.__sending_tasklet)(data)
+            MSG_SOCKET_SEND.send(self.__sending_tasklet)(return_guid, data)
     
     def stop(self):
-         self.channel.basic_cancel("nodetag")
+         self.channel.basic_cancel(WFE_CONSUMER_TAG)
          self.channel.close()
          self.connection.close()
     
@@ -75,38 +86,26 @@ class AMQPTask:
             data = yaml.load(msg)
         except yaml.parser.ParserError:
             q.logger.log("[AMQPTask] Received bad formatted data: " + str(msg), 3)
-            print "[AMQPTask] Received bad formatted data: " + str(msg)
         else:
             q.logger.log("[AMQPTask] Received data: " + str(data), 3)
-            print "[AMQPTask] Received data: " + str(data)
             Tasklet.new(self.__messageHandler)(data)
     
     def __receive(self):
         # Called in the receiving tasklet
-        # TODO Add some logics for reconnecting if the connection is lost !
-        q.logger.log("[AMQPTask] READY TO RECEIVE !", 3)
-        print "[AMQPTask] READY TO RECEIVE !"
-        self.channel.basic_consume(queue='in_q', no_ack=True, callback=self.__recveive_callback, consumer_tag="nodetag")
+        q.logger.log("[AMQPTask] Ready to receive", 3)
+        self.channel.basic_consume(queue=QueueInfrastructure.WFE_RPC_QUEUE, no_ack=True, callback=self.__recveive_callback, consumer_tag=WFE_CONSUMER_TAG)
         while True:
-            try:
-                self.channel.wait()
-            except:
-                print traceback.format_exc()
-                MSG_SOCKET_CLOSE.send(self.__sending_tasklet)()
-                q.logger.log("[AMQPTask] Client disconnected.", 3)
-                print "[AMQPTask] Client disconnected."
-                break
+            self.channel.wait() # Waits for 1 message
     
     def __send(self):
         # Started in the sending tasklet
-        q.logger.log("[AMQPTask] READY TO SEND !", 3)
-        print "[AMQPTask] READY TO SEND !"
+        q.logger.log("[AMQPTask] Ready to send", 3)
         for msg, args, kwargs in Tasklet.receive():
             if msg.match(MSG_SOCKET_SEND):
-                message = yaml.dump(args[0])
-                q.logger.log("[AMQPTask] Sending message: " + message, 3)
-                print "[AMQPTask] Sending message: " + message
-                self.channel.basic_publish(amqp.Message(message), exchange="out_x")
+                return_guid = args[0]
+                data = yaml.dump(args[1])
+                q.logger.log("[AMQPTask] Sending message: " + data, 3)
+                self.channel.basic_publish(amqp.Message(data), exchange=QueueInfrastructure.WFE_RPC_RETURN_EXCHANGE, routing_key=return_guid)
             elif msg.match(MSG_SOCKET_CLOSE):
                 return
 

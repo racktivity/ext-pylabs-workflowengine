@@ -44,9 +44,9 @@ def main():
                 q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
                 ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
                 q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
-                amqp_task.sendData({'id':data['id'], 'error':False, 'return':ret})
+                amqp_task.sendData(data['return_guid'], {'id':data['id'], 'error':False, 'return':ret})
             except Exception, e:
-                amqp_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
+                amqp_task.sendData(data['return_guid'], {'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
         amqp_task.setMessageHandler(_handle_message)
 
         if enable_debug:
