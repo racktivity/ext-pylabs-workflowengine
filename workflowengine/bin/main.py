@@ -12,6 +12,7 @@ from concurrence import Tasklet, Message, dispatch
 
 from workflowengine.DRPClient import DRPTask
 from workflowengine.AMQPInterface import AMQPTask
+from workflowengine.QueueInfrastructure import QueueInfrastructure
 from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
@@ -38,15 +39,15 @@ def main():
         #q.logger.logTargetAdd(LogTargetScribe())
 
         #INITIALIZE THE TASKS
-        amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/")
+        amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/", QueueInfrastructure.WFE_RPC_QUEUE, QueueInfrastructure.WFE_RPC_RETURN_EXCHANGE, "wfe_tag")
         def _handle_message(data):
             try:
                 q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
                 ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
                 q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
-                amqp_task.sendData(data['return_guid'], {'id':data['id'], 'error':False, 'return':ret})
+                amqp_task.sendData({'id':data['id'], 'error':False, 'return':ret}, routing_key=data['return_guid'])
             except Exception, e:
-                amqp_task.sendData(data['return_guid'], {'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
+                amqp_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)}, routing_key=data['return_guid'])
         amqp_task.setMessageHandler(_handle_message)
 
         if enable_debug:
@@ -55,7 +56,7 @@ def main():
             debug_socket_task.setMessageHandler(debugInterface.handleMessage)
             q.workflowengine.jobmanager.initializeDebugging()
 
-        drp_task = DRPTask(config['osis_address'], config['osis_service'])
+        drp_task = DRPTask("localhost", 5672, "guest", "guest", "/") # TODO Read the RabbitMQ credentials from a config file
         hostname = config['hostname'] if 'hostname' in config and config['hostname'] else config['xmppserver']
         ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], hostname, config['password'])
     except Exception, e:

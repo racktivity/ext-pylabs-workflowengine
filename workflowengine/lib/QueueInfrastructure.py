@@ -28,8 +28,12 @@ class QueueInfrastructure:
     WFE_RPC_EXCHANGE = "wfe_rpc_exchange"
     WFE_RPC_QUEUE = "wfe_rpc_queue"
     WFE_RPC_RETURN_EXCHANGE = "wfe_rpc_return_exchange"
+    WFE_RPC_RETURN_QUEUE_PREFIX = "wfe_rpc_rq_"
     
-    WFE_RPC_RETURN_QUEUE_PREFIX = "wfe_rpc_rq_" 
+    WFE_OSIS_EXCHANGE = "wfe_osis_exchange"
+    WFE_OSIS_QUEUE = "wfe_osis_queue"
+    WFE_OSIS_RETURN_EXCHANGE = "wfe_osis_return_exchange"
+    WFE_OSIS_RETURN_QUEUE_PREFIX = "wfe_osis_rq_"
     
     def __init__(self, amqpAbstraction):
         self.amqpAbstraction = amqpAbstraction
@@ -44,14 +48,27 @@ class QueueInfrastructure:
         self.amqpAbstraction.exchange_declare(exchange=self.WFE_RPC_EXCHANGE, type="direct", durable=False, auto_delete=False)
         self.amqpAbstraction.queue_bind(queue=self.WFE_RPC_QUEUE, exchange=self.WFE_RPC_EXCHANGE)
         self.amqpAbstraction.exchange_declare(exchange=self.WFE_RPC_RETURN_EXCHANGE, type="direct", durable=False, auto_delete=False)
-        # TODO Create the basic WFE - OSIS infrastructure
+        # Create the basic WFE - OSIS infrastructure
+        self.amqpAbstraction.queue_declare(queue=self.WFE_OSIS_QUEUE, durable=False, exclusive=False, auto_delete=False)
+        self.amqpAbstraction.exchange_declare(exchange=self.WFE_OSIS_EXCHANGE, type="direct", durable=False, auto_delete=False)
+        self.amqpAbstraction.queue_bind(queue=self.WFE_OSIS_QUEUE, exchange=self.WFE_OSIS_EXCHANGE)
+        self.amqpAbstraction.exchange_declare(exchange=self.WFE_OSIS_RETURN_EXCHANGE, type="direct", durable=False, auto_delete=False)
     
     def createAppserverReturnQueue(self, guid):
         returnQueueName = self.getAppserverReturnQueueName(guid) 
         self.amqpAbstraction.queue_declare(queue=returnQueueName, durable=False, exclusive=True, auto_delete=True)
         self.amqpAbstraction.queue_bind(queue=returnQueueName, exchange=self.WFE_RPC_RETURN_EXCHANGE, routing_key=guid)
     
+    def createOsisReturnQueue(self, guid):
+        returnQueueName = self.getOsisReturnQueueName(guid) 
+        self.amqpAbstraction.queue_declare(queue=returnQueueName, durable=False, exclusive=True, auto_delete=True)
+        self.amqpAbstraction.queue_bind(queue=returnQueueName, exchange=self.WFE_OSIS_RETURN_EXCHANGE, routing_key=guid)
+    
     @classmethod
     def getAppserverReturnQueueName(klass, guid):
         return klass.WFE_RPC_RETURN_QUEUE_PREFIX + guid
-
+    
+    @classmethod
+    def getOsisReturnQueueName(klass, guid):
+        return klass.WFE_OSIS_RETURN_QUEUE_PREFIX + guid
+        

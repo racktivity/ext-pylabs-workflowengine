@@ -2,13 +2,13 @@ from pymonkey import q
 
 from osis import init
 from osis.model.serializers import ThriftSerializer
-from osis.client.xmlrpc import XMLRPCTransport
 from osis.client import OsisConnection
 from osis.store.OsisFilterObject import OsisFilterObject
 
 from concurrence import Tasklet, Message
 
 from workflowengine.Exceptions import WFLException
+from workflowengine.AMQPInterface import AMQPTransport
 
 import uuid
 
@@ -113,11 +113,12 @@ class DRPTask:
 
     bufferedObjects = [ 'job' ]
 
-    def __init__(self, address, service):
+    def __init__(self, host, port, username, password, vhost):
         init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
+        return_queue_guid = "abc" # Should be a generated GUID for scalability
 
         try:
-            self.connection = OsisConnection(XMLRPCTransport(address, service), ThriftSerializer)
+            self.connection = OsisConnection(AMQPTransport(host, port, username, password, vhost, return_queue_guid), ThriftSerializer)
         except:
             q.logger.log("[DRPTask] Failed to initialize the OSIS application server service connection.", 1)
             raise
@@ -189,3 +190,4 @@ class DRPTask:
         for object_ in commit_buffer.values():
             self.sendToDrp(name, 'save', object_)
         
+
