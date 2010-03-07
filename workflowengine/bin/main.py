@@ -39,7 +39,7 @@ def main():
         #q.logger.logTargetAdd(LogTargetScribe())
 
         #INITIALIZE THE TASKS
-        amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/", QueueInfrastructure.WFE_RPC_QUEUE, QueueInfrastructure.WFE_RPC_RETURN_EXCHANGE, "wfe_tag")
+        amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/", QueueInfrastructure.WFE_RPC_QUEUE, QueueInfrastructure.WFE_RPC_RETURN_EXCHANGE, "wfe_tag") #TODO Read from config
         def _handle_message(data):
             try:
                 q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
