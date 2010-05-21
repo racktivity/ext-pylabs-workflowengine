@@ -1,27 +1,81 @@
-class ParentNotFoundException(Exception):
-    def __init__(self, msg):
-        Exception.__init__(self, msg)
+# IMPORTANT REMARK: in order to get yaml to dump the exceptions, all parameters on the constructor have to be OPTIONAL !
+import traceback
+
+class WFLException(Exception):
+    def __init__(self, exception_name=None, exception_message=None, stacktrace=None, jobguid=None):
+        self.exception_name = exception_name
+        self.exception_message = exception_message
+        self.stacktrace = stacktrace
+        self.jobguid = jobguid
+
+    @classmethod
+    def create(cls, exception, jobguid=""):
+        if isinstance(exception, WFLException):
+            return exception
+        else:
+            exception_name = str(type(exception)).split("'")[1]
+            exception_message = str(exception)
+            stacktrace = traceback.format_exc()
+            return WFLException(exception_name, exception_message, stacktrace,jobguid)
+
+    @classmethod
+    def createCombo(cls, exceptions):
+        exception_name = "Combo exception"
+        exception_message = "Multiple exceptions occurred"
+        stacktrace = ""
+        for exception in exceptions:
+            stacktrace += str(WFLException.create(exception)) + "\n"
+        return WFLException(exception_name, exception_message, stacktrace)
+
+    def __str__(self):
+        return "Exception: %s\nMessage: %s \nStacktrace:\n%s\n" % (self.exception_name, self.exception_message, self.stacktrace)
 
 class JobNotRunningException(Exception):
-    def __init__(self, msg):
-        Exception.__init__(self, msg)
-        
-class LogmessageFormatViolationException(Exception):
-    def __init__(self, msg):
-        Exception.__init__(self, msg)
-        
+    def __init__(self, jobguid=None, status=None):
+        self.jobguid = jobguid
+        self.status = status
+
+    def __str__(self):
+        return "Job '" + str(self.jobguid) +"' is not running, status is " + str(self.status)
+
+
 class ActionNotFoundException(Exception):
-    def __init__(self, type, object, name):
-        Exception.__init__(self, type+" not found: "+object+"."+name)
+    def __init__(self, type=None, object=None, name=None):
+        self.type = type
+        self.object = object
+        self.name = name
+
+    def __str__(self):
+        return str(self.type) + " not found: " + str(self.object) + "." + str(self.name)
+
 
 class ScriptFailedException(Exception):
-    def __init__(self, errorcode, errormessage):
-        Exception.__init__(self, "errorcode=" + str(errorcode) +", " + errormessage)
+    def __init__(self, jobguid=None, agentguid=None, scriptpath=None, errorcode=None, errormessage=None):
+        self.jobguid = jobguid
+        self.agentguid = agentguid
+        self.scriptpath = scriptpath
         self.errorcode = errorcode
         self.errormessage = errormessage
 
-class JobFailedException(Exception):
-    def __init__(self, exception, jobguid):
-        Exception.__init__(self, "Job " + jobguid + " : " + str(exception))
-        self.exception = exception
+    def __str__(self):
+        return "Script '" + str(self.scriptpath) + "' on agent '" + str(self.agentguid) + "' for job '" + str(self.jobguid) + "' failed with errorcode " + str(self.errorcode) + " : " + str(self.errormessage)
+
+
+class TimeOutException(Exception):
+    def __init__(self, jobguid=None, agentguid=None, scriptpath=None,timeout=None):
         self.jobguid = jobguid
+        self.agentguid = agentguid
+        self.scriptpath = scriptpath
+        self.timeout = timeout
+
+    def __str__(self):
+        return "Script '" + str(self.scriptpath) + "' on agent '" + str(self.agentguid) + "' for job '" + str(self.jobguid) + "' timed out. Script took longer than "+ str(self.timeout) + " seconds."
+
+
+class AgentNotAvailableException(Exception):
+    def __init__(self, agentguid=None):
+        self.agentguid = agentguid
+
+    def __str__(self):
+        return "Agent '" + str(self.agentguid) + "' is not available."
+

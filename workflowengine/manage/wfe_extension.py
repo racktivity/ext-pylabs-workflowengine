@@ -1,30 +1,56 @@
-from pymonkey.config import *
+from pymonkey import q
+from pymonkey.config import ConfigManagementItem, ItemGroupClass
 
-from workflowengine.WFLActionManager import WFLActionManager
-from workflowengine.WFLAgentController import WFLAgentController
-from workflowengine.DRPClient import DRPClient
+def inAppserver():
+    import threading
+    return hasattr(q.application, '_store') and isinstance(q.application._store, threading.local)
 
-class ActionManager(WFLActionManager):
-    pass
+def inWFE():
+    return hasattr(q.application, 'appname') and q.application.appname == 'workflowengine'
 
-class AgentController(WFLAgentController):
-    pass
+if inWFE():
+    from workflowengine.WFLActionManager import WFLActionManager
+    from workflowengine.WFLAgentController import WFLAgentController
+    from workflowengine.WFLJobManager import WFLJobManager
 
-class Drp(DRPClient):
-    pass
+    ActionManager = WFLActionManager
+    AgentController = WFLAgentController
+    JobManager = WFLJobManager
 
-class AgentControllerConfigItem(ConfigManagementItem):
+else:
+
+    class Dummy:
+        pass
+
+    if inAppserver():
+        from workflowengine.CloudAPIActionManager import WFLActionManager
+        ActionManager = WFLActionManager
+    else:
+        ActionManager = Dummy
+
+    JobManager = Dummy
+    AgentController = Dummy
+
+from workflowengine.QshellDRPClient import DRPClient
+Drp = DRPClient
+
+
+class WFLConfigItem(ConfigManagementItem):
     """
-    Configuration of the agentcontroller.
+    Configuration of the Workflowengine.
     """
 
-    CONFIGTYPE = "agentcontroller"
-    DESCRIPTION = "agentcontroller configuration"
+    CONFIGTYPE = "Workflowengine"
+    DESCRIPTION = "Workflowengine configuration"
 
     def ask(self):
-        self.dialogAskString('agentcontrollerid', 'The ID of the agentcontroller', None)
-        self.dialogAskString('xmppserver', 'The dns-address of the xmpp server', None)
-        self.dialogAskPassword('password', 'The password for the agent on the xmpp server', None)
+        self.dialogAskInteger('port', 'The port of workflowengine socket', 9876)
+        # osis_address: doesn't work with localhost in stead of 127.0.0.1. Due to ConcurrenceSocket limitations.
+        self.dialogAskString('osis_address', 'The address of the applicationserver running the OSIS service', 'http://127.0.0.1:8888')
+        self.dialogAskString('osis_service', 'The name of the OSIS service', 'osis_service')
+        self.dialogAskString('xmppserver', 'The DNS address of the XMPP server', None)
+        self.dialogAskString('agentcontrollerguid', 'The agentguid of the agentcontroller', None)
+        self.dialogAskPassword('password', 'The password of the agentcontroller on the XMPP server', None)
 
-AgentControllerConfig = ItemGroupClass(AgentControllerConfigItem)
+WFLConfig = ItemGroupClass(WFLConfigItem)
 

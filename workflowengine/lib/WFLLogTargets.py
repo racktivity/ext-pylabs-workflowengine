@@ -1,16 +1,43 @@
-from pymonkey.log.LogTargets import LogTarget
+from pymonkey import q
 
-class WFLJobLogTarget(LogTarget):
-    def __init__(self, job, maxVerbosityLevel=5):
-        LogTarget.__init__(self)
-        self.job = job
-        self.maxVerbosityLevel = maxVerbosityLevel
+from concurrence import Tasklet
+
+class WFLJobLogTarget(object):
+
+    def __init__(self):
+        self.maxlevel = 5
+        self.enabled = True
+
+    def checkTarget(self):
+        """
+        check status of target, if ok return True
+        for std out always True
+        """
+        True
 
     def __str__(self):
-        return "WFLJobLogTarget logging for job :%s"%(self.job.getJobGUID())
+        return "WFLJobLogTarget"
 
     def ___repr__(self):
         return str(self)
 
-    def log(self, record):
-        self.job.log(record.msg, record.verbosityLevel)
+    def log(self, message):
+        if hasattr(Tasklet.current(), 'jobguid'):
+            jobguid = Tasklet.current().jobguid
+            q.workflowengine.jobmanager.appendJobLog(jobguid, message)
+        else:
+            # No job in the context, do nothing
+            pass
+        return True
+
+    def __eq__(self, other):
+        if not other:
+            return False
+        if not isinstance(other, WFLJobLogTarget):
+            return False
+
+        return True
+
+    def close(self):
+        pass
+

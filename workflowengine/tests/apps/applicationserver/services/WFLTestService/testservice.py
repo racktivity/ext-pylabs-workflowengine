@@ -7,11 +7,8 @@ class WFLTestService:
     
     @q.manage.applicationserver.expose
     def test(self, num):
-        ret = q.workflowengine.actionmanager.startRootobjectAction("ro_test", "test", {'num':num})
+        ret = q.workflowengine.actionmanager.startRootobjectAction("ro_test", "test", {'num':num}, executionparams={'maxduration':10})
+                
         params = ret['result']
-        jobguid = ret ['jobguid']
+        jobguid = ret['jobguid']
         return "Job " + jobguid + ": test successful : " + str(params)
-
-    @q.manage.applicationserver.expose
-    def agents(self):
-        return str(q.workflowengine.agentcontroller.agents())
