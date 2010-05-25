@@ -1,6 +1,8 @@
-from pymonkey import q
-
+import base64
+import zlib
 import random
+
+from pymonkey import q
 
 from concurrence import Tasklet, Message
 from concurrence.io import Connector
@@ -155,7 +157,7 @@ class XMPPClient:
         '''
         q.logger.log("[SL XMPPCLIENT] Sending message '" + str(id) + "' of type '" + str(type) +"' to " + str(to) + " for " + self.__username + "@" + self.__hostname, 5)
         self.__queueTillConnected()
-        self.stream.write_message(to+"@"+self.__hostname, type, id, message)
+        self.stream.write_message(to+"@"+self.__hostname, type, id, base64.encodestring(zlib.compress(message)))
 
     def __queueTillConnected(self):
         ''' Checks if the xmppclient is connected. If it is not connected, the current tasklet will be queued until a connection is established. '''
@@ -185,7 +187,7 @@ class XMPPClient:
                         fromm = element.get('from').split("@")[0]
                         message = unescapeFromXml(element.getchildren()[0].text)
                         q.logger.log("[SL XMPPCLIENT] Received message '" + element.get('id') + "' from '" + fromm + "' of type '" + element.get('type') + " for " + self.__username + "@" + self.__hostname, 5)
-                        yield {'type':'message', 'from':fromm, 'message_type':element.get('type'), 'id':element.get('id'), 'message':message}
+                        yield {'type':'message', 'from':fromm, 'message_type':element.get('type'), 'id':element.get('id'), 'message':zlib.decompress(base64.decodestring(message))}
                     else:
                         q.logger.log("[SL XMPPCLIENT] Received wrong tag: '" + str(element.tag)  + " for " + self.__username + "@" + self.__hostname, 5)
             except EOFError:
