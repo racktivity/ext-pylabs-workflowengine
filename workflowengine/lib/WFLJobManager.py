@@ -46,8 +46,7 @@ class WFLJobManager:
             write_shm(self.__currentjob_shm, "Not in job")
 
     def __writeJobsToShm(self):
-        tasklet = Tasklet.new(write_shm)(Tasklet.current(), self.__jobs_shm, str(self.__shm_jobs)+"\n---\n")
-        #write_shm(self.__jobs_shm, str(self.__shm_jobs)+"\n---\n")
+        write_shm(self.__jobs_shm, str(self.__shm_jobs)+"\n---\n")
 
     def __addJobToShm(self, job):
         self.__shm_jobs[job.guid] = {'guid':job.guid, 'actionname': job.actionName, 'parentjobguid':job.parentjobguid, 'jobstatus':str(job.jobstatus), \
