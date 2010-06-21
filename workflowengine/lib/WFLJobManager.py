@@ -24,7 +24,7 @@ class WFLJobManager:
         self.__waitingJobs = {}
         self.__runningJobs = {}
         self.__stoppedJobs = {}
-
+        self.__shm_jobs = {}
         self.__killedJobs = {}
         self.__rootJobGuid_treejobs_mapping = {}
         self.enable_debug = False
@@ -46,12 +46,14 @@ class WFLJobManager:
             write_shm(self.__currentjob_shm, "Not in job")
 
     def __writeJobsToShm(self):
-        jobs = {}
-        for jobList in [ self.__waitingJobs, self.__runningJobs, self.__stoppedJobs ]:
-            for jobguid in jobList:
-                jdo = jobList[jobguid].drp_object
-                jobs[jobguid] = {'guid':jobguid, 'actionname': jdo.actionName, 'parentjobguid':jdo.parentjobguid, 'jobstatus':str(jdo.jobstatus), 'starttime':str(jdo.starttime), 'agentguid':jdo.agentguid }
-        write_shm(self.__jobs_shm, str(jobs)+"\n---\n")
+        write_shm(self.__jobs_shm, str(self.__shm_jobs)+"\n---\n")
+
+    def __addJobToShm(self, job):
+        self.__shm_jobs[job.guid] = {'guid':job.guid, 'actionname': job.actionName, 'parentjobguid':job.parentjobguid, 'jobstatus':str(job.jobstatus), \
+                                     'starttime':str(job.starttime), 'agentguid':job.agentguid }
+
+    def __removeJobFromShm(self, jobguid):
+        self.__shm_jobs.pop(jobguid, None)
 
     def createJob(self, parentjobguid, actionName, executionparams, agentguid=None, params=""):
         parentjob = parentjobguid and self.__getJob(parentjobguid)
@@ -66,7 +68,9 @@ class WFLJobManager:
         job.ancestor.runningJobsInTree += 1
         # TODO Waiting jobs should be stored in the action queue in OSIS
         self.__waitingJobs[job.drp_object.guid] = job
-        if self.enable_debug:self.__writeJobsToShm()
+        if self.enable_debug:
+            self.__addJobToShm(job.drp_object)
+            self.__writeJobsToShm()
         return job.drp_object.guid
 
     def startJob(self, jobguid):
@@ -74,7 +78,9 @@ class WFLJobManager:
             job = self.__waitingJobs.pop(jobguid)
             self.__runningJobs[jobguid] = job
             job.start()
-            if self.enable_debug:self.__writeJobsToShm()
+            if self.enable_debug:
+                self.__addJobToShm(job.drp_object)
+                self.__writeJobsToShm()
             # TODO Running jobs should be stored in the action queue in OSIS
         else:
             # TODO Check in OSIS if the job exists and if it is waiting: should be stored in the action queue
@@ -86,7 +92,9 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.done(result)
             self.__stoppedJob(job)
-            if self.enable_debug:self.__writeJobsToShm()
+            if self.enable_debug:
+                self.__removeJobFromShm(jobguid)
+                self.__writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -97,7 +105,9 @@ class WFLJobManager:
             self.__stoppedJobs[job.drp_object.guid] = job
             job.died(exception)
             self.__stoppedJob(job)
-            if self.enable_debug:self.__writeJobsToShm()
+            if self.enable_debug:
+                self.__removeJobFromShm(jobguid)
+                self.__writeJobsToShm()
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' cannot be stopped, it is not running." % jobguid)
@@ -113,7 +123,6 @@ class WFLJobManager:
                 self.__stoppedJobs.pop(job.drp_object.guid)
                 if self.__killedJobs.has_key(job.drp_object.guid):
                     self.__killedJobs.pop(job.drp_object.guid)
-        if self.enable_debug:self.__writeJobsToShm()
 
     def appendJobLog(self, jobguid, logmessage, level=5, source=""):
         if jobguid in self.__runningJobs:
@@ -171,8 +180,10 @@ class WFLJobManager:
                     log += ("Killing %s\n") % job.drp_object.guid
                     try:
                         q.workflowengine.agentcontroller.killScript(job.drp_object.agentguid, job.drp_object.guid, 1)
+                        self.__removeJobFromShm(job.drp_object.guid)
                     except:
                         log += traceback.format_exc() + "\n"
+            self.__writeJobsToShm()
             return log
 
     def isKilled(self, jobguid):
