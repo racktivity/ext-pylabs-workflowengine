@@ -182,10 +182,44 @@ class DRPTask:
     
     def commit_buffer(self, name, buffer):
         ''' Commit 1 buffer to OSIS '''
+        
+        """
         commit_buffer = {}
         commit_buffer.update(buffer)
         buffer.clear()
         
         for object_ in commit_buffer.values():
             self.sendToDrp(name, 'save', object_)
+        """
+        
+        runid = str(uuid.uuid4())
+        
+        q.logger.log('[DRPTasklet] START commit_buffer run with guid %s.%s' % (id(self), runid))
+        
+        for k in buffer.keys():
+            
+            # ------------------------Start unsafe ---------------------------
+            object_ = buffer.pop(k, None)
+            
+            # Check if we have an object
+            # Object could  be saved in the mean time by other calls to commit_buffer
+            # Triggered by timed calls or direct calls in the buffered drp interface
+            if object_:
+                try:
+                    self.sendToDrp(name, 'save', object_)
+                except Exception, ex:
+                    q.logger.log('[DRPTasklet] Failed to save buffered %s with guid %s' % (name, k))
+                    
+                    # Re-add to buffer if it does not already contain a (newer?) version
+                    # As versions are guids, we can't tell if a version is newer or older
+                    if not k in buffer:
+                        buffer[k] = object_
+            # ------------------------Stop unsafe ---------------------------
+                    
+        q.logger.log('[DRPTasklet] STOP commit_buffer run with guid %s.%s' % (id(self), runid))
+                    
+                
+                
+            
+            
         
