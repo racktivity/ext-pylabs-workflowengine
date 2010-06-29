@@ -40,14 +40,20 @@ def main():
 
         #INITIALIZE THE TASKS
         amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/", QueueInfrastructure.WFE_RPC_QUEUE, QueueInfrastructure.WFE_RPC_RETURN_EXCHANGE, "wfe_tag") #TODO Read from config
-        def _handle_message(data):
+        def _handle_message(msg):
             try:
-                q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
-                ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
-                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
-                amqp_task.sendData({'id':data['id'], 'error':False, 'return':ret}, routing_key=data['return_guid'])
+                q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (msg.messageid, msg.category, msg.methodname), level=8)
+                ret = q.workflowengine.actionmanager.startRootobjectAction(msg.category, msg.methodname, msg.params, msg.params.get('executionparams', {}), msg.params.get('jobguid', None))
+                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (msg.messageid, msg.category, msg.methodname), level=8)
+                
+                
+                msg.params['result'] = ret
+                
+                #amqp_task.sendData({'id':data['id'], 'error':False, 'return':ret}, routing_key=msg.returnqueue)
+                amqp_task.sendData(msg.getMessageString(), routing_key=msg.returnqueue)
             except Exception, e:
-                amqp_task.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)}, routing_key=data['return_guid'])
+                msg.params['rpc_exception'] = str(WFLException.create(e))
+                amqp_task.sendData(msg.getMessageString(), routing_key=msg.returnqueue)
         amqp_task.setMessageHandler(_handle_message)
 
         if enable_debug:

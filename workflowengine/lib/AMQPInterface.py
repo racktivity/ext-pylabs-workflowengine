@@ -91,11 +91,13 @@ class AMQPTask:
     def __recveive_callback(self, msg):
         msg = msg.body
         try:
-            data = yaml.load(msg)
-        except yaml.parser.ParserError:
+            #data = yaml.load(msg)
+            data = q.messagehandler.getRPCMessageObject(msg)
+        #except yaml.parser.ParserError:
+        except Exception, e:
             q.logger.log("[AMQPTask] Received bad formatted data: " + str(msg), 3)
         else:
-            q.logger.log("[AMQPTask] Received data: " + str(data), 3)
+            #q.logger.log("[AMQPTask] Received data: " + str(data), 3)
             Tasklet.new(self.__messageHandler)(data)
     
     def __receive(self):
@@ -110,13 +112,13 @@ class AMQPTask:
         q.logger.log("[AMQPTask] Ready to send", 3)
         for msg, args, kwargs in Tasklet.receive():
             if msg.match(MSG_SOCKET_SEND):
-                data = yaml.dump(args[0])
+                data =args[0]
                 routing_key = args[1]
                 q.logger.log("[AMQPTask] Sending message: " + data, 3)
                 self.channel.basic_publish(amqp.Message(data), exchange=self.sendExchange, routing_key=routing_key)
             elif msg.match(MSG_SOCKET_CLOSE):
                 return
-
+    
 
 class AMQPTransport(object):
     '''AMQP transport to communicate with an OSIS worker'''
@@ -127,143 +129,44 @@ class AMQPTransport(object):
         self.amqpTask.setMessageHandler(self.receive)
         self.amqpTask.start()
         
+        # Hack Hack
+        self.proxies = {} 
+        
         self.return_queue_guid = return_queue_guid
         self.id = 0
         self.tasklets = {}
     
     def receive(self, message):
-        MSG_RETURN_MESSAGE_RECEIVED.send(self.tasklets[message['id']])(message)
+        MSG_RETURN_MESSAGE_RECEIVED.send(self.tasklets[message.messageid])(message)
     
     def sendAndWait(self, message):
-        messageId = self.id
+        messageId = str(self.id)
         self.id += 1
-        
-        message['id'] = messageId
-        message['return_queue_guid'] = self.return_queue_guid
+               
         self.tasklets[messageId] = Tasklet.current()
         
-        self.amqpTask.sendData(message)
+        msg = q.messagehandler.getRPCMessageObject()
+        msg.domain = 'drp'
+        msg.category = message.get('type', '')
+        msg.methodname = message.pop('action')
+        
+        msg.returnqueue = self.return_queue_guid
+        msg.messageid = messageId
+        
+        msg.login = ''
+        msg.passwd = ''
+        
+        for k, v in message.iteritems():
+            if k not in ('type'):
+                msg.params[k] = v
+    
+        #routingkey = '%s.%s.%s.%s' % (self.rpc_exchange, msg.domain, msg.category, msg.methodname)
+        routingkey = '%s.%s.%s' % ('drp.rpc', msg.category, msg.methodname)
+    
+        
+        self.amqpTask.sendData(msg.getMessageString(), routingkey)
         
         for msg, args, kwargs in Tasklet.receive():
             if msg.match(MSG_RETURN_MESSAGE_RECEIVED):
-                return args[0]['return']
-
-    def get(self, type_, guid, serializer):
-        '''Retrieve an serialized object from the server
-
-        @param type_: Root object type name
-        @type type_: string
-        @param guid: Root object GUID
-        @type guid: string
-        @param serializer: Name of the serialization method being used
-        @type serializer: string
-
-        @return: Serialized root object instance
-        @rtype: string
-        '''
-        message = {'action':'get', 'type':type_, 'guid':guid, 'serializer':serializer}
-        return base64.decodestring(self.sendAndWait(message))
-
-    def get_version(self, type_, guid, version, serializer):
-        '''Retrieve an serialized object from the server
-
-        @param type_: Root object type name
-        @type type_: string
-        @param guid: Root object GUID
-        @type guid: string
-        @param version: GUID of the object version to retrieve
-        @type version: string
-        @param serializer: Name of the serialization method being used
-        @type serializer: string
-
-        @return: Serialized root object instance
-        @rtype: string
-        '''
-        message = {'action':'get_version', 'type':type_, 'guid':guid, 'version':version, 'serializer':serializer}
-        return base64.decodestring(self.sendAndWait(message))
-
-    def runQuery(self,query):
-        '''Run query from OSIS server
-
-        @param query: Query to execute on OSIS server
-        @type query: string
-
-        @return: result of the query else raise error
-        @type: List of rows. Each row shall be represented as a dictionary.
-        '''
-        message = {'action':'runQuery', 'query':query}
-        return self.sendAndWait(message)
-
-    def delete(self, type_, guid):
-        '''Delete a serialized object from the server
-
-        @param type_: Root object type name
-        @type type_: string
-        @param guid: Root object GUID
-        @type guid: string
-
-        @return: True or False, according as the deletion succeeds or fails.
-        '''
-        message = {'action':'delete', 'type':type_, 'guid':guid}
-        return self.sendAndWait(message)
-
-    def delete_version(self, type_, guid, version):
-        '''Delete a serialized object from the server
-
-        @param type_: Root object type name
-        @type type_: string
-        @param guid: Root object GUID
-        @type guid: string
-        @param version: GUID of the object version to delete
-        @type version: string
-
-        @return: True or False, according as the deletion succeeds or fails.
-        '''
-        message = {'action':'delete_version', 'type':type_, 'guid':guid, 'version':version}
-        return self.sendAndWait(message)
-
-    def put(self, type_, data, serializer):
-        '''Store a serialized object to the server
-
-        @param type_: Root object type name
-        @type type_: string
-        @param data: Serialized object data
-        @type data: string
-        @param serializer: Name of the serialization method being used
-        @type serializer: string
-        '''
-        message = {'action':'put', 'type':type_, 'data':base64.encodestring(data), 'serializer':serializer}
-        return self.sendAndWait(message)
-
-    def find(self, type_, filter_, view):
-        '''Perform a filter operation on the server
-
-        @param type_: Root object type name
-        @type type_: string
-        @param filter_: Filter definition
-        @type filter_: L{OsisFilterObject}
-        @param view: View to return
-        @type view: string
-
-        @return: List of GUIDs or OsisList of data
-        @rtype: tuple<string> or tuple
-        '''
-        message = {'action':'find', 'type':type_, 'filter':filter_.filters, 'view':view}
-        return self.sendAndWait(message)
-
-    def findAsView(self, type_, filter_, view):
-        '''Perform a filter operation on the server
-
-        @param type_: Root object type name
-        @type type_: string
-        @param filter_: Filter definition
-        @type filter_: L{OsisFilterObject}
-        @param view: View to return
-        @type view: string
-
-        @return: List of GUIDs or OsisList of data
-        @rtype: list
-        '''
-        message = {'action':'findAsView', 'type':type_, 'filter':filter_.filters, 'view':view}
-        return self.sendAndWait(message)
-        
+                return args[0]
+                #return args[0]['return']

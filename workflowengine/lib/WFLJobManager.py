@@ -283,6 +283,8 @@ class WFLJob:
         except Exception, ex:
             self.log("Failed to parse params %s, Error: %s"%(self.drp_object.params, ex), 3, 'workflowengine')
         self.result = result
+        
+        q.logger.log('>>>>>>> Committing JOB DONE')
         self.commit_drp_object()
 
     def died(self, exception):
@@ -312,6 +314,7 @@ class WFLJob:
         """
         Commits the job to the DRP.
         """
+        q.logger.log('>>>>>>> Committing DRP object')
         q.drp.job.save(self.drp_object)
         self.drp_object = q.drp.job.get(self.drp_object.guid)
 

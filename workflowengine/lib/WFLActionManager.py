@@ -208,4 +208,5 @@ class WFLActionManager():
 
         else:
             q.workflowengine.jobmanager.setJobDone(jobguid, params.get('result'))
+            q.logger.log('>>>>>>>>>>>>> /JOB SET DONE')
             if wait is True: MSG_ACTION_RETURN.send(parentTasklet)()

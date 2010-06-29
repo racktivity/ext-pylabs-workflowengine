@@ -1,0 +1,10 @@
+# python temporary files
+syntax: glob
+*.pyc
+
+#editor autosaves
+*~
+.DS_Store
+syntax: glob
+.project
+.pydevproject

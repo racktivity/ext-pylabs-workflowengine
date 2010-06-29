@@ -1,3 +1,4 @@
+"""
 from pymonkey import q
 
 from osis import init
@@ -38,3 +39,4 @@ class DRPClient(object):
         for type in types.itervalues():
             name = getattr(type, 'OSIS_TYPE_NAME', type.__name__.lower())
             setattr(self, name, getattr(self.__connection, name))
+"""

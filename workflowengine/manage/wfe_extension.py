@@ -31,8 +31,8 @@ else:
     JobManager = Dummy
     AgentController = Dummy
 
-from workflowengine.QshellDRPClient import DRPClient
-Drp = DRPClient
+#from workflowengine.QshellDRPClient import DRPClient
+Drp = q.drp
 
 
 class WFLConfigItem(ConfigManagementItem):

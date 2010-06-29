@@ -58,14 +58,21 @@ class WFLActionManager():
     	    self.__error = ex
         ###### /For synchronous execution ##########
 
-    def _receivedData(self, data):
-        if data['id'] not in self.deferreds:
+    def _receivedData(self, msg):
+        if msg.messageid not in self.deferreds:
             q.logger.log("[CLOUDAPIActionManager] Got message for an unknown id !")
         else:
-            if 'return' in data:
-                self.deferreds[data['id']].callback(data['return'])
-            elif 'exception' in data:
-                self.deferreds[data['id']].errback(data['exception'])
+            try:
+                # @tod: check error or not!
+                q.logger.log("[CLOUDAPIActionManager] Got message for id  !" )
+                self.deferreds[msg.messageid].callback(msg.params['result'])
+            except Exception, ex:
+                q.logger.log('MISERIE: %s' % ex.message)
+                raise ex
+            #if 'return' in msg:
+            #    self.deferreds[msg.messageid].callback(msg.result)
+            #elif 'exception' in data:
+            #    self.deferreds[msg.messageid].errback(msg.result)
 
     def startActorAction(self, actorname, actionname, params, executionparams={}, jobguid=None):
         '''
@@ -94,31 +101,55 @@ class WFLActionManager():
             executionparams['wait'] = False
 
         # Don't need to lock here, all async actions are called from the reactor thread
-        my_id = self.id
+        my_id = str(self.id)
         self.id += 1
+
+
+        message = q.messagehandler.getRPCMessageObject()
+        
+        message.domain = 'cloudapi'
+        message.category = rootobjectname
+        message.methodname = actionname
+        message.params = params
+        message.params['executionparams'] = executionparams
+        message.params['jobguid'] = jobguid
+        
+        message.login = ''
+        message.passwd = ''
+        
+        # @todo: switch to guids
+        message.messageid = my_id
+        
+        
 
         deferred = defer.Deferred()
         self.deferreds[my_id] = deferred 
-        self.amqpClient.sendMessage({'id':my_id, 'rootobjectname':rootobjectname, 'actionname':actionname, 'params':params, 'executionparams':executionparams, 'jobguid':jobguid})
+        #self.amqpClient.sendMessage({'id':my_id, 'rootobjectname':rootobjectname, 'actionname':actionname, 'params':params, 'executionparams':executionparams, 'jobguid':jobguid})
+        
+        self.amqpClient.sendMessage(message)
         
         return deferred
 
     def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
 
+        return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
+    
+        """
         q.logger.log('>>> Executing startRootobjectActionSynchronous : %s %s %s' % (rootobjectname, actionname, params), 1)
     	if not self.__engineLoaded:
     	    raise Exception(self.__error)
     
-            if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
-                raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
-    
-            self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)
-    
-            result = {'jobguid': None, 'result': params.get('result', None)}
-    
-            q.logger.log('>>> startRootobjectActionSynchronous returns : %s ' % result, 1)
-    
-            return result
+        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
+            raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
+
+        self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)
+
+        result = {'jobguid': None, 'result': params.get('result', None)}
+
+        q.logger.log('>>> startRootobjectActionSynchronous returns : %s ' % result, 1)
+
+        return result
+        """
 
 class ActionUnavailableException(Exception):
     def __init__(self):
@@ -186,10 +217,15 @@ class AMQPInterface():
         
     def __gotMessage(self, msg):
         try:
-            retdata = yaml.load(msg.content.body) # TODO Implement your favorite messaging format here
-            self.dataReceivedCallback(retdata)
-        except yaml.parser.ParserError:
-            q.logger.log("[CLOUDAPIActionManager] txAMQP received invalid message: " + str(message), 3)
+            #retdata = yaml.load(msg.content.body) # TODO Implement your favorite messaging format here
+            message = q.messagehandler.getRPCMessageObject(msg.content.body)
+            self.dataReceivedCallback(message)
+            
+        except Exception, ex:
+            
+            q.logger.log("[CLOUDAPIActionManager] txAMQP received invalid message: %s\nMsg: %s" % (ex, str(msg)), 3)
+            q.logger.log("[CLOUDAPIActionManager] Exception:: " + ex.message, 3)
+            
         finally:
             self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
 
@@ -198,12 +234,20 @@ class AMQPInterface():
         self.connection = None
         reactor.callLater(10, self.connect)
 
-    def sendMessage(self, data):
+    def sendMessage(self, msg):
         if not hasattr(self, "connection") or self.connection is None:
             raise Exception("txAMQP has no connection...")
 
-        data['return_guid'] = appserver_return_guid 
-        message = Content(yaml.dump(data)) # TODO Implement your favorite messaging format here
-        q.logger.log("[CLOUDAPIActionManager] txAMQP is sending the message " + str(data))
-        ret = self.channel.basic_publish(exchange=QueueInfrastructure.WFE_RPC_EXCHANGE, content=message)
-
+        #data['return_guid'] = appserver_return_guid 
+        #message = Content(yaml.dump(data)) # TODO Implement your favorite messaging format here
+        
+        # @todo: define correct return queue!
+        msg.returnqueue = appserver_return_guid
+        message = Content(msg.getMessageString())
+        
+        routingkey = '%s.%s.%s' % (QueueInfrastructure.WFE_RPC_EXCHANGE, msg.category, msg.methodname)
+        
+        q.logger.log("[CLOUDAPIActionManager] txAMQP is sending the message " + str(message))
+        ret = self.channel.basic_publish(exchange=QueueInfrastructure.WFE_RPC_EXCHANGE, routing_key=routingkey, content=message)
+        
+        
