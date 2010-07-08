@@ -1,5 +1,7 @@
 from pymonkey import q, i
 import signal, time
+import yaml
+import socket
 
 class WorkflowEngineManage:
     stacklessBin = q.system.fs.joinPaths(q.dirs.baseDir, 'bin', 'python')
@@ -12,6 +14,7 @@ class WorkflowEngineManage:
 
     initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initSuccess')
     initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
+    config = i.config.workflowengine.getConfig('main')
 
     def start(self):
         """
@@ -20,9 +23,9 @@ class WorkflowEngineManage:
         if self.getStatus() == q.enumerators.AppStatusType.RUNNING:
             print "The workflowengine is already running."
         else:
-            port = int(i.config.workflowengine.getConfig('main')['port'])
+            port = int(self.config['port'])
             if q.system.process.getProcessByPort(port) <> None:
-                print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(i.config.workflowengine.getConfig('main')['port'])))
+                print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(self.config['port'])))
             else:
                 if q.system.process.checkProcess(self.workflowengineProcess) == 0:
                     print "Cannot start the workflowengine: an other instance of the workflowengine is running."
@@ -100,3 +103,21 @@ class WorkflowEngineManage:
             return q.enumerators.AppStatusType.RUNNING
         return q.enumerators.AppStatusType.HALTED
 
+
+    def ping(self):
+        """
+        Checks if workflowengine is still responsive
+        """
+
+        ping = yaml.dump('ping') + "\n---\n"
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect(('localhost', int(self.config['port'])))
+        sock.sendall(ping)
+        sock.settimeout(5)
+        msg = ''
+        try:
+            msg = sock.recv(30)
+        except:
+            return False
+        sock.close()
+        return 'pong' in msg
