@@ -9,6 +9,8 @@ from workflowengine.SharedMemory import create_shm, close_shm, write_shm
 import stackless, yaml
 import traceback
 
+import sys
+
 from concurrence import Tasklet, Message
 class MSG_JOB_FINISHED(Message): pass
 
@@ -125,8 +127,11 @@ class WFLJobManager:
                     self.__killedJobs.pop(job.drp_object.guid)
 
     def appendJobLog(self, jobguid, logmessage, level=5, source=""):
+                
         if jobguid in self.__runningJobs:
             self.__runningJobs[jobguid].log(logmessage, level, source)
+        elif jobguid in self.__stoppedJobs:
+            self.__stoppedJobs[jobguid].log(logmessage, level, source)
         else:
             # TODO Check in OSIS if the job exists and if it is running: should be stored in the action queue
             raise Exception("Job '%s' is not started." % jobguid)

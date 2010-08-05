@@ -157,7 +157,15 @@ class XMPPClient:
         '''
         q.logger.log("[SL XMPPCLIENT] Sending message '" + str(id) + "' of type '" + str(type) +"' to " + str(to) + " for " + self.__username + "@" + self.__hostname, 5)
         self.__queueTillConnected()
-        self.stream.write_message(to+"@"+self.__hostname, type, id, base64.encodestring(zlib.compress(message)))
+        
+        try:
+            self.stream.write_message(to+"@"+self.__hostname, type, id, base64.encodestring(zlib.compress(message)))
+        except IOError, ioe:
+            # Connection was lost: try to reconnect !
+            self.__connected = False
+            q.logger.log("[SL XMPPCLIENT] Connection lost: %s" % ioe.message, 3)
+            raise RuntimeError('Could not send message'), ioe
+            
 
     def __queueTillConnected(self):
         ''' Checks if the xmppclient is connected. If it is not connected, the current tasklet will be queued until a connection is established. '''
@@ -190,12 +198,24 @@ class XMPPClient:
                         yield {'type':'message', 'from':fromm, 'message_type':element.get('type'), 'id':element.get('id'), 'message':zlib.decompress(base64.decodestring(message))}
                     else:
                         q.logger.log("[SL XMPPCLIENT] Received wrong tag: '" + str(element.tag)  + " for " + self.__username + "@" + self.__hostname, 5)
-            except EOFError:
+            except EOFError, eof:
                 # Connection was lost: try to reconnect !
                 self.__connected = False
-                q.logger.log("[SL XMPPCLIENT] Connection lost.", 3)
+                q.logger.log("[SL XMPPCLIENT] Connection lost: %s" % eof.message, 3)
                 self._reconnect()
                 yield {'type':'disconnected'}
+            except IOError, ioe:
+                # Connection was lost: try to reconnect !
+                self.__connected = False
+                q.logger.log("[SL XMPPCLIENT] Connection lost: %s" % ioe.message, 3)
+                self._reconnect()
+                yield {'type':'disconnected'}
+            except Exception, e:
+                # We cannot die 
+                # but what to do now?
+                q.logger.log("[SL XMPPCLIENT] Unhandled exception: %s" % e.message, 1)
+                
+            
 
 
 class XMPPStream:

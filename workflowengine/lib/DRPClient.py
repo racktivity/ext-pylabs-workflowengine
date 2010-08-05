@@ -194,7 +194,7 @@ class DRPTask:
         
         runid = str(uuid.uuid4())
         
-        q.logger.log('[DRPTasklet] START commit_buffer run with guid %s.%s' % (id(self), runid))
+        #q.logger.log('[DRPTasklet] START commit_buffer run with guid %s.%s' % (id(self), runid))
         
         for k in buffer.keys():
             
@@ -216,7 +216,7 @@ class DRPTask:
                         buffer[k] = object_
             # ------------------------Stop unsafe ---------------------------
                     
-        q.logger.log('[DRPTasklet] STOP commit_buffer run with guid %s.%s' % (id(self), runid))
+        #q.logger.log('[DRPTasklet] STOP commit_buffer run with guid %s.%s' % (id(self), runid))
                     
                 
                 

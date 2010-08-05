@@ -49,12 +49,16 @@ class AgentControllerTask:
     def __receiver(self):
         # Get the messages received by the XMPPClient and pass them to the agent controller
         for element in self.__xmppclient.receive():
-            if element['type'] == 'presence':
-                self.__agent_controller and self.__agent_controller._presence_received(element['from'], element['presence_type'])
-            elif element['type'] == 'message':
-                self.__agent_controller and self.__agent_controller._message_received(element['from'], element['message_type'], element['id'], element['message'])
-            elif element['type'] == 'disconnected':
-                self.__agent_controller and self.__agent_controller._disconnected()
+            try:
+                if element['type'] == 'presence':
+                    self.__agent_controller and self.__agent_controller._presence_received(element['from'], element['presence_type'])
+                elif element['type'] == 'message':
+                    self.__agent_controller and self.__agent_controller._message_received(element['from'], element['message_type'], element['id'], element['message'])
+                elif element['type'] == 'disconnected':
+                    self.__agent_controller and self.__agent_controller._disconnected()
+            except Exception, ex:
+                q.logger.log('AGENTCONTROLLER: Failed to handle received message! message: %s - error: %s' % (element, ex.message), 1)
+                
 
     def connectWFLAgentController(self, wflAgentController):
         self.__agent_controller = AgentController(self.__sending_tasklet)
