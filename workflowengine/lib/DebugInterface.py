@@ -6,20 +6,20 @@ class DebugInterface():
     def __init__(self, socket_task):
         self.__socket_task = socket_task
 
-    def handleMessage(self, data):
+    def handleMessage(self, data, connection):
         if data['action'] == 'heartbeat':
-            self.heartbeat()
+            self.heartbeat(connection)
         elif data['action'] ==  'kill_job':
-            self.kill_job(data['jobguid'])
+            self.kill_job(data['jobguid'], connection)
 
-    def heartbeat(self):
-        self.__socket_task.sendData({"action":"heartbeat", "reply":"alive"})
+    def heartbeat(self, connection):
+        connection.sendData({"action":"heartbeat", "reply":"alive"})
 
-    def kill_job(self, jobguid):
+    def kill_job(self, jobguid, connection):
         try:
             result = q.workflowengine.jobmanager.killJob(jobguid)
         except:
-            self.__socket_task.sendData({"action":"kill_job", "reply":"failed", "message":traceback.format_exc()})
+            connection.sendData({"action":"kill_job", "reply":"failed", "message":traceback.format_exc()})
         else:
-            self.__socket_task.sendData({"action":"kill_job", "reply":"success"})
+            connection.sendData({"action":"kill_job", "reply":"success"})
 

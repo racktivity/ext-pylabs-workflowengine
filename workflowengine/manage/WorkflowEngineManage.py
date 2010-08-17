@@ -99,7 +99,9 @@ class WorkflowEngineManage:
         Retrieve the pid from given file
         """
         pid = self._getPid()
-        if pid and q.system.process.isPidAlive(int(pid)):
+        if pid \
+            and q.system.process.isPidAlive(int(pid)) \
+            and self.ping():
             return q.enumerators.AppStatusType.RUNNING
         return q.enumerators.AppStatusType.HALTED
 
@@ -110,12 +112,14 @@ class WorkflowEngineManage:
         """
 
         ping = yaml.dump('ping') + "\n---\n"
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect(('localhost', int(self.config['port'])))
-        sock.sendall(ping)
-        sock.settimeout(5)
         msg = ''
+        
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
         try:
+            sock.connect(('localhost', int(self.config['port'])))
+            sock.sendall(ping)
+            sock.settimeout(5)
             msg = sock.recv(30)
         except:
             return False

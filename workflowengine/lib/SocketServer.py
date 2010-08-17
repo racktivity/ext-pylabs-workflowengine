@@ -1,14 +1,14 @@
 from pymonkey import q
 
 from concurrence import Tasklet, Message
-from concurrence.io import BufferedStream, Socket
+from concurrence.io import BufferedStream, Socket, Server
 
 import yaml
 
 class MSG_SOCKET_SEND(Message): pass
 class MSG_SOCKET_CLOSE(Message): pass
 
-class SocketTask:
+class SocketTaskHandler(object):
     '''
     The SocketTask starts a tasklet that listens for incomming connections. Only one connection will be granted access.
     When a client is connected, a second tasklet will be started. One tasklet is responsible for receiving messages, the other for sending messages.
@@ -17,13 +17,13 @@ class SocketTask:
     When the task receives a message, it will create a new tasklet and call the messageHandler, passing it the received data as a parameter.
     '''
 
-    def __init__(self, port):
-        self.__server_socket = Socket.new()
-        self.__server_socket.set_reuse_address(1)
-        self.__server_socket.bind(('', port))
-        self.__server_socket.listen()
+    def __init__(self):
+        #self.__server_socket = Socket.new()
+        #self.__server_socket.set_reuse_address(1)
+        #self.__server_socket.bind(('', port))
+        #self.__server_socket.listen()
+        
         self.__client_socket = None
-
         self.__receiving_tasklet = None
         self.__sending_tasklet = None
 
@@ -33,9 +33,17 @@ class SocketTask:
         '''
         self.__messageHandler = messageHandler
 
-    def start(self):
+    def start(self, client_socket):
         ''' Start the task: start one tasklet listing for incomming connections. '''
-        self.__receiving_tasklet = Tasklet.new(self.__serve)()
+        
+        #self.__receiving_tasklet = Tasklet.new(self.__serve)()
+        
+        self.__client_socket = client_socket
+        
+        self.__stream = BufferedStream(self.__client_socket)
+        q.logger.log("[SocketTaskHandler] Client connected.", 3)
+        self.__sending_tasklet = Tasklet.new(self.__send)()
+        self.__receiving_tasklet = Tasklet.new(self.__receive())()
 
     def sendData(self, data):
         '''
@@ -43,24 +51,15 @@ class SocketTask:
         @param data: the data to send
         @raise Exception: if no client is connected
         '''
+        
         if self.__sending_tasklet == None:
-            q.logger.log("[SocketTask] No connection to client, can't send the message.", 1)
+            q.logger.log("[SocketTaskHandler] No connection to client, can't send the message.", 1)
             raise Exception("No connection to client, can't send the message.")
         else:
             MSG_SOCKET_SEND.send(self.__sending_tasklet)(data)
 
     def stop(self):
         self.__stream and self.__stream.close()
-        self.__server_socket and self.__server_socket.close()
-
-    def __serve(self):
-        # Started in the receiving tasklet
-        while True:
-            self.__client_socket = self.__server_socket.accept()
-            self.__stream = BufferedStream(self.__client_socket)
-            q.logger.log("[SocketTask] Client connected.", 3)
-            self.__sending_tasklet = Tasklet.new(self.__send)()
-            self.__receive()
 
     def __receive(self):
         # Called in the receiving tasklet
@@ -83,15 +82,15 @@ class SocketTask:
                             self.sendData('pong')
 
                     except yaml.parser.ParserError:
-                        q.logger.log("[SocketTask] Received bad formatted data: " + str(buffer), 3)
+                        q.logger.log("[SocketTaskHandler] Received bad formatted data: " + str(buffer), 3)
                     else:
                         if processData:
-                            q.logger.log("[SocketTask] Received data: " + str(data), 5)
-                            Tasklet.new(self.__messageHandler)(data)
+                            q.logger.log("[SocketTaskHandler] Received data: " + str(data), 5)
+                            Tasklet.new(self.__messageHandler)(data, self)
                     buffer = ""
 
         except EOFError:
-            q.logger.log("[SocketTask] Client disconnected.", 3)
+            q.logger.log("[SocketTaskHandler] Client disconnected.", 3)
             MSG_SOCKET_CLOSE.send(self.__sending_tasklet)()
             self.__stream.close()
 
@@ -102,7 +101,7 @@ class SocketTask:
         for msg, args, kwargs in Tasklet.receive():
             if msg.match(MSG_SOCKET_SEND):
                 message = self.__yaml_message(args[0])
-                q.logger.log("[SocketTask] Sending message: " + message, 5)
+                q.logger.log("[SocketTaskHandler] Sending message: " + message, 5)
                 writer.write_bytes(message)
                 writer.flush()
             elif msg.match(MSG_SOCKET_CLOSE):
@@ -110,4 +109,34 @@ class SocketTask:
 
     def __yaml_message(self, dict):
         return yaml.dump(dict) + "\n---\n"
-
+    
+class SocketTask(object):
+    
+    def __init__(self, port, handler=None):
+        q.logger.log("[SocketTask] Initializing on port %s" % port, 8)
+        self.port = port
+        self.handler = handler
+        
+        # Keep mapping between re
+        self.connected_clients = dict()
+        q.logger.log("[SocketTask] Initialized on port %s" % self.port, 8)
+        
+    def start(self):
+        self.socket_server = Server.serve(('', self.port), self._handle_client_connection)
+        q.logger.log("[SocketTask] Started on port %s" % self.port, 8)
+    
+    def stop(self):
+        self.socket_server.close()
+        q.logger.log("[SocketTask] Stopped on port %s" % self.port, 8)
+    
+    def setMessageHandler(self, handler):
+        self.handler = handler
+        
+        
+    def _handle_client_connection(self, client_socket):
+        q.logger.log("[SocketTask] Connection request on %s" % self.port, 8)
+        tasklet_handler = SocketTaskHandler()
+        tasklet_handler.setMessageHandler(self.handler)
+        tasklet_handler.start(client_socket)
+        q.logger.log("[SocketTask] Connection handled on %s" % self.port, 8)
+        
