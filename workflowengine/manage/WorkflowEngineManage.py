@@ -55,7 +55,7 @@ class WorkflowEngineManage:
             q.system.process.kill(int(self._getPid()), sig=signal.SIGTERM)
 
             i = 10
-            while self.getStatus() == q.enumerators.AppStatusType.RUNNING:
+            while self.ping() or q.system.process.isPidAlive(int(self._getPid())):
                 if i > 0:
                     print "   Still running, waiting %i seconds..." % i
                     i -= 1
