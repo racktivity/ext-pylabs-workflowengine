@@ -3,7 +3,7 @@ import yaml
 from concurrence import Tasklet, Message
 from workflowengine.XMPPClient import XMPPClient
 from workflowengine.Exceptions import AgentNotAvailableException, TimeOutException, ScriptFailedException
-import base64
+import base64, zlib
 
 class MSG_XMPP_SEND_MESSAGE(Message): pass
 class MSG_XMPP_SEND_PRESENCE(Message): pass
@@ -67,10 +67,11 @@ class AgentControllerTask:
 
 class AgentController:
 
-    def __init__(self, send_tasklet):
+    def __init__(self, send_tasklet, max_content_length=1024*1024):
         self.__send_tasklet = send_tasklet
         self.__presenceList = PrecenseList()
         self.__jobQueue = JobQueue()
+        self.__max_content_length = max_content_length
 
     def executeScript(self, agentguid, jobguid, scriptpath, params):
         '''
@@ -92,7 +93,6 @@ class AgentController:
         timeout = q.workflowengine.jobmanager.getMaxduration(jobguid)
 
         script = base64.encodestring(script)
-
         yaml_message = yaml.dump({'params':params, 'script':script})
         self.__jobQueue.start(jobguid, agentguid, params, scriptpath)
         self.__sendMessage(agentguid, 'start', jobguid, yaml_message)
@@ -168,6 +168,10 @@ class AgentController:
             pass
 
     def _message_received(self, agentguid, type, jobguid, message):
+        
+        if message:
+            message = zlib.decompress(base64.decodestring(message))
+        
         if type == 'agent_done':
             return_params = yaml.load(message)
             self.__jobQueue.done(jobguid, agentguid, return_params)
@@ -184,7 +188,11 @@ class AgentController:
         self.__presenceList.clear()
 
     def __sendMessage(self, to, type, id, message=' '):
-        MSG_XMPP_SEND_MESSAGE.send(self.__send_tasklet)(Tasklet.current(), to, type, id, message)
+        content = base64.encodestring(zlib.compress(message))
+        if len(content) > self.__max_content_length:
+            raise ValueError('Message content size (%s) is greater than max allowed size (%s)' % (len(content), self.__max_content_length))
+        
+        MSG_XMPP_SEND_MESSAGE.send(self.__send_tasklet)(Tasklet.current(), to, type, id, content)
         (msg, args, kwargs) = Tasklet.receive().next()
         if msg.match(MSG_XMPP_ERROR):
             raise args[0]

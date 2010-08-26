@@ -182,20 +182,7 @@ class DRPTask:
     
     def commit_buffer(self, name, buffer):
         ''' Commit 1 buffer to OSIS '''
-        
-        """
-        commit_buffer = {}
-        commit_buffer.update(buffer)
-        buffer.clear()
-        
-        for object_ in commit_buffer.values():
-            self.sendToDrp(name, 'save', object_)
-        """
-        
-        runid = str(uuid.uuid4())
-        
-        #q.logger.log('[DRPTasklet] START commit_buffer run with guid %s.%s' % (id(self), runid))
-        
+                
         for k in buffer.keys():
             
             # ------------------------Start unsafe ---------------------------
@@ -215,8 +202,6 @@ class DRPTask:
                     if not k in buffer:
                         buffer[k] = object_
             # ------------------------Stop unsafe ---------------------------
-                    
-        #q.logger.log('[DRPTasklet] STOP commit_buffer run with guid %s.%s' % (id(self), runid))
                     
                 
                 

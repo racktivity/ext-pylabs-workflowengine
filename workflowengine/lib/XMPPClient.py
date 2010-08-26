@@ -1,6 +1,4 @@
-import base64
-import zlib
-import random
+import random 
 
 from pymonkey import q
 
@@ -159,14 +157,13 @@ class XMPPClient:
         self.__queueTillConnected()
         
         try:
-            self.stream.write_message(to+"@"+self.__hostname, type, id, base64.encodestring(zlib.compress(message)))
+            self.stream.write_message(to+"@"+self.__hostname, type, id, message)
         except IOError, ioe:
             # Connection was lost: try to reconnect !
             self.__connected = False
             q.logger.log("[SL XMPPCLIENT] Connection lost: %s" % ioe.message, 3)
-            raise RuntimeError('Could not send message'), ioe
-            
-
+            raise RuntimeError('Could not send message', ioe)
+        
     def __queueTillConnected(self):
         ''' Checks if the xmppclient is connected. If it is not connected, the current tasklet will be queued until a connection is established. '''
         if not self.__connected:
@@ -193,11 +190,12 @@ class XMPPClient:
                         yield {'type':'presence', 'from':fromm, 'presence_type':type}
                     elif element.tag == '{jabber:client}message':
                         fromm = element.get('from').split("@")[0]
-                        message = unescapeFromXml(element.getchildren()[0].text)
+                        #message = unescapeFromXml(element.getchildren()[0].text)
+                        # Messages are gzipped and base64 encoded
                         q.logger.log("[SL XMPPCLIENT] Received message '" + element.get('id') + "' from '" + fromm + "' of type '" + element.get('type') + " for " + self.__username + "@" + self.__hostname, 5)
-                        yield {'type':'message', 'from':fromm, 'message_type':element.get('type'), 'id':element.get('id'), 'message':zlib.decompress(base64.decodestring(message))}
+                        yield {'type':'message', 'from':fromm, 'message_type':element.get('type'), 'id':element.get('id'), 'message':element.getchildren()[0].text }
                     else:
-                        q.logger.log("[SL XMPPCLIENT] Received wrong tag: '" + str(element.tag)  + " for " + self.__username + "@" + self.__hostname, 5)
+                        q.logger.log("[SL XMPPCLIENT] Received wrong tag: '" + str(element.tag)  + " for " + self.__username + "@" + self.__hostname, 1)
             except EOFError, eof:
                 # Connection was lost: try to reconnect !
                 self.__connected = False
@@ -221,7 +219,7 @@ class XMPPClient:
 class XMPPStream:
 
     def __init__(self, stream):
-        self.stream = BufferedStream(stream)
+        self.stream = BufferedStream(stream, buffer_size=1024*1024)
         self.reset()
 
     def reset(self):
@@ -264,7 +262,9 @@ class XMPPStream:
     def write_message(self, to, type, id, message):
         elemToSend = Element("message", {'to':escapeToXml(to, isattrib=1), 'type':escapeToXml(type, isattrib=1), 'id':escapeToXml(id, isattrib=1)})
         body = Element('body')
-        body.text = escapeToXml(message)
+        #body.text = escapeToXml(message)
+        # Messages are gzipped and base64 encoded 
+        body.text = message
         elemToSend.append(body)
         self.__write_bytes(tostring(elemToSend))
 
