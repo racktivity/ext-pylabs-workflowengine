@@ -228,14 +228,18 @@ class WFLJob:
         self.create_drp_object()
         self.ancestor = self
         self.runningJobsInTree = 0
+        self.childJobs = 0
 
         fillInExecutionparams(self.drp_object, executionparams)
 
         if parentjob:
             self.drp_object.parentjobguid = parentjob.drp_object.guid
-            self.drp_object.order = WFLJob.getNextChildOrder(parentjob.drp_object.guid)
-            #inheritFromParent(self.drp_object, parentjob.drp_object)
             self.ancestor = parentjob.ancestor
+            
+            # Update order in tree
+            self.drp_object.order = parentjob.childJobs
+            parentjob.childJobs = parentjob.childJobs + 1
+            
             #inherit the clouduserguid from parent job if not already set
             self.drp_object.clouduserguid = self.drp_object.clouduserguid or parentjob.drp_object.clouduserguid
 
@@ -334,6 +338,7 @@ class WFLJob:
         q.drp.job.save(self.drp_object)
         self.drp_object = q.drp.job.get(self.drp_object.guid)
 
+    """
     @classmethod
     def findChildren(cls, parentjobguid):
         filterObj = q.drp.job.getFilterObject()
@@ -363,3 +368,4 @@ class WFLJob:
             if jobobj['joborder'] > highestOrder:
                 highestOrder = jobobj['joborder']
         return highestOrder + 1
+    """
