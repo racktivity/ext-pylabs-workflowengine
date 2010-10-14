@@ -183,6 +183,11 @@ class AgentController:
         elif type == 'agent_log':
             message_object = yaml.load(message)
             q.workflowengine.jobmanager.appendJobLog(jobguid, message_object['message'].encode(), message_object['level'], agentguid.encode())
+        elif type == 'error':
+            self.__jobQueue.died(jobguid, agentguid, 1, "Could not send script to Agent." )
+            raise AgentNotAvailableException(agentguid)
+        else:
+            q.logger.log("Got back unknown message type: %s" % type, 1)
 
     def _disconnected(self):
         self.__presenceList.clear()
