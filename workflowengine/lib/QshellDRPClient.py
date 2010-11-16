@@ -28,12 +28,6 @@ class DRPClient(object):
             q.logger.log("[DRPClient] Failed to initialize the OSIS application server service connection: the DRPClient won't work...", 1)
             return
         
-        try:
-            self.__conn = OsisDB().getConnection('main')
-        except:
-             q.logger.log("[DRPClient] Failed to initialize the database connection for OSIS: the DRPClient won't work...", 1)
-             return
-
         from osis import ROOTOBJECT_TYPES as types
         for type in types.itervalues():
             name = getattr(type, 'OSIS_TYPE_NAME', type.__name__.lower())
