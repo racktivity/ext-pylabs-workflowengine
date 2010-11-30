@@ -82,7 +82,39 @@ def main():
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
-
+        
+        def clean_jobs():
+            # Clean out job db if required
+            # Put all running jobs in error with log msg
+            from pymonkey.messages.LogObject import LogObject
+            from pymonkey.messages import toolStripNonAsciFromText
+            
+            f = q.drp.job.getFilterObject()
+            f.add('view_job_list', 'jobstatus', 'RUNNING')
+            running_jobs = q.drp.job.find(f)
+            
+            q.logger.log('%s jobs to reset' % len(running_jobs), 1)
+            
+            if len(running_jobs) > 0:
+                
+                msg = toolStripNonAsciFromText('\n\nJob status reset to ERROR during workflowengine initialization')
+                l = LogObject()
+                l.init(msg, 1)
+                logentry = q.logger._encodeLog(l.getMessageString(), level=1)
+                
+                for jobguid in running_jobs:
+                    try:
+                        job = q.drp.job.get(jobguid)
+                        job.jobstatus = q.enumerators.jobstatus.ERROR
+                        job.log = ( job.log or "") + logentry
+                        q.logger.log('Setting running job %s to ERROR' % job.guid, 1)
+                        q.drp.job.save(job)
+                    except Exception, e:
+                        q.logger.log('Failed to reset job %s: %s' % (jobguid, ex.message), 1)
+        
+        tasklet = Tasklet.new(clean_jobs)()
+        Tasklet.join(tasklet)
+        
         print "Ready !"
 
 if __name__=='__main__':
