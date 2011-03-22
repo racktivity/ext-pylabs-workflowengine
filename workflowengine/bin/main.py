@@ -69,9 +69,9 @@ def main():
         socket_task = SocketTask(int(config['port']))
         def _handle_message(data, connection):
             try:
-                q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
-                ret = q.workflowengine.actionmanager.startRootobjectAction(data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
-                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (data['id'], data['rootobjectname'], data['actionname']), level=8)
+                q.logger.log('Received message from CloudAPI with id %s - %s.%s.%s' % (data['id'], data['domainname'], data['rootobjectname'], data['actionname']), level=8)
+                ret = q.workflowengine.actionmanager.startRootobjectAction(data['domainname'], data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
+                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s.%s' % (data['id'], data['domainname'], data['rootobjectname'], data['actionname']), level=8)
                 connection.sendData({'id':data['id'], 'error':False, 'return':ret})
             except Exception, e:
                 connection.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})

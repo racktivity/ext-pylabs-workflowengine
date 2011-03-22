@@ -1,3 +1,5 @@
+import os.path
+
 from pylabs import q
 from pylabs.tasklets import TaskletsEngine
 
@@ -103,7 +105,7 @@ class WFLActionManager():
         elif msg.match(MSG_ACTION_EXCEPTION):
             raise args[0]
 
-    def startRootobjectAction(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectAction(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
         Starts a given RootObject Action. Uses the tasklet engine to run the matching tasklets.
 
@@ -136,18 +138,20 @@ class WFLActionManager():
         @raise ActionNotFoundException:        In case no actions are found for the specified rootobjectname and actoraction
         @raise e:                              In case an error occurred, exception is raised
         """
-        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
-            raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
+        path = os.path.join(RootobjectActionTaskletPath, domainname)
+
+        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=path)) == 0:
+            raise ActionNotFoundException("RootobjectAction", '%s.%s' % (domainname, rootobjectname), actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or (hasattr(Tasklet.current(), 'jobguid') and Tasklet.current().jobguid) or None
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
            raise Exception("Can't create child jobs: the job is killed !")
         
-        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams, params=str(params))
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, domainname + '.' + rootobjectname+"."+actionname, executionparams, params=str(params))
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
 
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (rootobjectname, actionname), RootobjectActionTaskletPath)
+        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (rootobjectname, actionname), path)
 
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
@@ -159,17 +163,17 @@ class WFLActionManager():
         elif msg.match(MSG_ACTION_EXCEPTION):
             raise args[0]
 
-    def startRootobjectActionAsynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectActionAsynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
         API compatibility with CloudAPIActionManager
         """
-        return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
+        return self.startRootobjectAction(domainname, rootobjectname, actionname, params, executionparams, jobguid)
 
-    def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectActionSynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
         API compatibility with CloudAPIActionManager
         """
-        return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
+        return self.startRootobjectAction(domainname, rootobjectname, actionname, params, executionparams, jobguid)
 
     def waitForActions(self, jobguids):
         """

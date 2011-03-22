@@ -1,3 +1,5 @@
+import os.path
+
 import yaml, threading, time
 from twisted.internet import protocol, reactor
 from workflowengine.Exceptions import ActionNotFoundException
@@ -20,10 +22,11 @@ class WFLActionManager():
     """
     def __init__(self):
         self.factory = YamlClientFactory(self._receivedData)
-        config = i.config.workflowengine.getConfig('main')
+        #config = i.config.workflowengine.getConfig('main')
 
         def _do_connect():
-            reactor.connectTCP('localhost', int(config['port']), self.factory)
+            #reactor.connectTCP('localhost', int(config['port']), self.factory)
+            reactor.connectTCP('localhost', 9876, self.factory)
         reactor.callInThread(_do_connect)
 
         self.running = {}
@@ -55,23 +58,23 @@ class WFLActionManager():
         self.running[data['id']]['exception'] = data.get('exception')
         self.running[data['id']]['lock'].release()
 
-    def startActorAction(self, actorname, actionname, params, executionparams={}, jobguid=None):
+    def startActorAction(self, domainname, actorname, actionname, params, executionparams={}, jobguid=None):
         '''
         This action is unavailable.
         @raise ActionUnavailableException: always thrown
         '''
         raise ActionUnavailableException()
 
-    def startRootobjectAction(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectAction(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):
 
         # For backwards compatibility
         # If called not explicitely, wait for result
 	if not 'wait' in executionparams:
             executionparams['wait'] = True
 
-        return self.startRootobjectActionAsynchronous(rootobjectname, actionname, params, executionparams, jobguid)
+        return self.startRootobjectActionAsynchronous(domainname, rootobjectname, actionname, params, executionparams, jobguid)
 
-    def startRootobjectActionAsynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectActionAsynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
         Send the root object action to the stackless workflowengine over a socket.
         The root object action will wait until the workflowengine returns a result.
@@ -90,7 +93,7 @@ class WFLActionManager():
         my_lock = threading.Lock()
         self.running[my_id] = {'lock': my_lock}
         my_lock.acquire()
-        self.factory.sendData({'id':my_id, 'rootobjectname':rootobjectname, 'actionname':actionname, 'params':params, 'executionparams':executionparams, 'jobguid':jobguid})
+        self.factory.sendData({'id':my_id, 'domainname': domainname, 'rootobjectname':rootobjectname, 'actionname':actionname, 'params':params, 'executionparams':executionparams, 'jobguid':jobguid})
         my_lock.acquire()
         # Wait for receivedData to release the lock
         my_lock.release()
@@ -101,15 +104,17 @@ class WFLActionManager():
         else:
             raise data['exception']
 
-    def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):        
+    def startRootobjectActionSynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):        
 
     	if not self.__engineLoaded:
     	    raise Exception(self.__error)
 
-        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
+        path = os.path.join(RootobjectActionTaskletPath, domainname)
+
+        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=path)) == 0:
             raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
 
-        self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)
+        self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=path)
 
         result = {'jobguid': None, 'result': params.get('result', None)}
 

@@ -36,7 +36,7 @@ class WorkflowEngineManage:
         if self.getStatus(appname) == q.enumerators.AppStatusType.RUNNING:
             print "The workflowengine is already running."
         else:
-            port = TODO
+            port = 9876
 
             workflowengineProcess =  '%s %s --appname=%s --port=%d' % \
                 (self.stacklessBin, self.workflowengineBin, appname, port)
@@ -137,7 +137,7 @@ class WorkflowEngineManage:
         
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        port = TODO
+        port = 9876 # TODO 
 
         try:
             sock.connect(('localhost', port))

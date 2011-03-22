@@ -3,6 +3,7 @@ from pylabs.config import ConfigManagementItem, ItemGroupClass
 
 def inAppserver():
     import threading
+    q.logger.log('INAPPSERVER: %s : %s' % (q.application, hasattr(q.application, '_store')), 1)
     return hasattr(q.application, '_store') and isinstance(q.application._store, threading.local)
 
 def inWFE():

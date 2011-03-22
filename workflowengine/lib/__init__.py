@@ -1,3 +1,4 @@
+import os
 import sys
 
 def _getParam(name):
@@ -14,5 +15,9 @@ def _getParam(name):
 
     raise RuntimeError('No %s command arg found' % name)
 
-getAppName = lambda: _getParam('appname')
+def getAppName():
+    name = os.environ.get('TWISTED_NAME', None)
+    if not name: return _getParam('appname')
+    return name.split('.')[-1]
+
 getPort = lambda: int(_getParam('port'))
