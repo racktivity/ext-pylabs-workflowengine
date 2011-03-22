@@ -1,4 +1,4 @@
-from pymonkey import q
+from pylabs import q
 
 from workflowengine.Exceptions import ActionNotFoundException, WFLException, TimeOutException,ScriptFailedException
 from workflowengine.WFLActionManager import ActorActionTaskletPath

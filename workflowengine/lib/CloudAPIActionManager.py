@@ -1,12 +1,18 @@
 import yaml, threading, time
 from twisted.internet import protocol, reactor
 from workflowengine.Exceptions import ActionNotFoundException
+from workflowengine import getAppName
 
-from pymonkey import q, i
+from pylabs import q, i
 
-ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
-ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
-RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
+#ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
+#ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
+#RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
+
+ActorActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
+        getAppName(), 'impl', 'actor')
+RootobjectActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
+        getAppName(), 'impl', 'action')
 
 class WFLActionManager():
     """
@@ -27,7 +33,7 @@ class WFLActionManager():
 
 
         ###### For synchronous execution ##########
-        from pymonkey.tasklets import TaskletsEngine
+        from pylabs.tasklets import TaskletsEngine
     	try:
     	    self.__taskletEngine = TaskletsEngine()
     	    ##create tasklets dir if it doesnt exist

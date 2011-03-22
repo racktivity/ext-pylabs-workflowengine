@@ -1,4 +1,4 @@
-from pymonkey import q
+from pylabs import q
 
 from osis import init
 from osis.model.serializers import ThriftSerializer
@@ -6,6 +6,8 @@ from osis.client.xmlrpc import XMLRPCTransport
 from osis.client import OsisConnection
 from osis.store.OsisDB import OsisDB
 from osis.store.OsisFilterObject import OsisFilterObject
+
+from workflowengine import getAppName
 
 class DRPClient(object):
     '''
@@ -20,7 +22,8 @@ class DRPClient(object):
             setattr(self, 'initialized', True)
     
     def __initialize(self):
-        init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
+        init(q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps', getAppName(),
+            'impl', 'osis'))
         
         try:
             self.__connection = OsisConnection(XMLRPCTransport('http://localhost:8888', 'osis_service'), ThriftSerializer)

@@ -1,4 +1,4 @@
-from pymonkey import q
+from pylabs import q
 
 from concurrence import Tasklet, Message
 from concurrence.io import BufferedStream, Socket, Server

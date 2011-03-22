@@ -1,61 +1,78 @@
-from pymonkey import q, i
+from pylabs import q
 import signal, time
 import yaml
 import socket
 
 class WorkflowEngineManage:
-    stacklessBin = q.system.fs.joinPaths(q.dirs.baseDir, 'bin', 'python')
+    #stacklessBin = q.system.fs.joinPaths(q.dirs.baseDir, 'bin', 'python')
+    stacklessBin = 'python'
     workflowengineBin = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','bin', 'main.py')
-    workflowengineProcess = '%s %s'%(stacklessBin, workflowengineBin)
+    #workflowengineProcess = '%s %s'%(stacklessBin, workflowengineBin)
 
-    pidFile = q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine.pid')
-    stdoutFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.stdout')
-    stderrFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.stderr')
+    #pidFile = q.system.fs.joinPaths(q.dirs.pidDir, 'workflowengine.pid')
+    #stdoutFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.stdout')
+    #stderrFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.stderr')
 
-    initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initSuccess')
-    initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
-    config = i.config.workflowengine.getConfig('main')
+    #initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initSuccess')
+    #initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
+    #config = i.config.workflowengine.getConfig('main')
 
-    def start(self):
+    def start(self, appname):
         """
         Start workflow engine
         """
-        if self.getStatus() == q.enumerators.AppStatusType.RUNNING:
+
+        pidFile = q.system.fs.joinPaths(q.dirs.pidDir,
+            'workflowengine.%s.pid' % appname)
+        stdoutFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
+            'workflowengine.%s.stdout' % appname)
+        stderrFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
+            'workflowengine.%s.stderr' % appname)
+        initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
+            'workflowengine.%s.initSuccess' % appname)
+        initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
+            'workflowengine.%s.initFailed' % appname)
+
+        if self.getStatus(appname) == q.enumerators.AppStatusType.RUNNING:
             print "The workflowengine is already running."
         else:
-            port = int(self.config['port'])
+            port = TODO
+
+            workflowengineProcess =  '%s %s --appname=%s --port=%d' % \
+                (self.stacklessBin, self.workflowengineBin, appname, port)
+
             if q.system.process.getProcessByPort(port) <> None:
-                print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(self.config['port'])))
+                print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(port)))
             else:
-                if q.system.process.checkProcess(self.workflowengineProcess) == 0:
+                if q.system.process.checkProcess(workflowengineProcess) == 0:
                     print "Cannot start the workflowengine: an other instance of the workflowengine is running."
                 else:
                     print "Starting the workflowengine."
-                    for file in [self.pidFile, self.stdoutFile, self.stderrFile, self.initSuccessFile, self.initFailedFile]:
+                    for file in [pidFile, stdoutFile, stderrFile, initSuccessFile, initFailedFile]:
                         if q.system.fs.exists(file): q.system.fs.remove(file)
-                    pid = q.system.process.runDaemon(self.workflowengineProcess, stdout=self.stdoutFile,  stderr=self.stderrFile)
-                    q.system.fs.writeFile(self.pidFile, str(pid))
+                    pid = q.system.process.runDaemon(workflowengineProcess, stdout=stdoutFile,  stderr=stderrFile)
+                    q.system.fs.writeFile(pidFile, str(pid))
 
                     print " Waiting for initialization"
-                    while not (q.system.fs.exists(self.initSuccessFile) or q.system.fs.exists(self.initFailedFile)) and q.system.process.checkProcess(self.workflowengineProcess) == 0:
+                    while not (q.system.fs.exists(initSuccessFile) or q.system.fs.exists(initFailedFile)) and q.system.process.checkProcess(workflowengineProcess) == 0:
                         time.sleep(0.5)
 
-                    if q.system.fs.exists(self.initSuccessFile):
+                    if q.system.fs.exists(initSuccessFile):
                         print "Workflowengine started"
                     else:
                         print "INITIALIZATION FAILED, WORKFLOWENGINE NOT STARTED !"
-                        print "  " + q.system.fs.fileGetContents(self.stderrFile).replace("\n", "\n  ")
+                        print "  " + q.system.fs.fileGetContents(stderrFile).replace("\n", "\n  ")
 
-    def stop(self):
+    def stop(self, appname):
         """
         Stop workflow engine
         """
-        if self.getStatus() == q.enumerators.AppStatusType.RUNNING:
+        if self.getStatus(appname) == q.enumerators.AppStatusType.RUNNING:
             print "Stopping the workflowengine."
-            q.system.process.kill(int(self._getPid()), sig=signal.SIGTERM)
+            q.system.process.kill(int(self._getPid(appname)), sig=signal.SIGTERM)
 
             i = 10
-            while self.ping() or q.system.process.isPidAlive(int(self._getPid())):
+            while self.ping(appname) or q.system.process.isPidAlive(int(self._getPid(appname))):
                 if i > 0:
                     print "   Still running, waiting %i seconds..." % i
                     i -= 1
@@ -68,45 +85,49 @@ class WorkflowEngineManage:
         else:
             print "The workflowengine is not running."
 
-    def restart(self):
+    def restart(self, appname):
         """
         Restart workflow engine
         """
-        self.stop()
-        self.start()
+        self.stop(appname)
+        self.start(appname)
 
-    def kill(self):
+    def kill(self, appname):
         """
         Stop workflow engine
         """
-        if self.getStatus() == q.enumerators.AppStatusType.RUNNING:
+        if self.getStatus(appname) == q.enumerators.AppStatusType.RUNNING:
             print "Killing the workflowengine."
-            q.system.process.kill(int(self._getPid()))
+            q.system.process.kill(int(self._getPid(appname)))
         else:
             print "The workflowengine is not running."
 
-    def _getPid(self):
+    def _getPid(self, appname):
         """
         Retrieve the pid from given file
         """
         pid = None
-        if q.system.fs.exists(self.pidFile):
-            pid = q.system.fs.fileGetContents(self.pidFile)
+
+        pidFile = q.system.fs.joinPaths(q.dirs.pidDir,
+            'workflowengine.%s.pid' % appname)
+
+        if q.system.fs.exists(pidFile):
+            pid = q.system.fs.fileGetContents(pidFile)
         return pid
 
-    def getStatus(self):
+    def getStatus(self, appname):
         """
         Retrieve the pid from given file
         """
-        pid = self._getPid()
+        pid = self._getPid(appname)
         if pid \
             and q.system.process.isPidAlive(int(pid)) \
-            and self.ping():
+            and self.ping(appname):
             return q.enumerators.AppStatusType.RUNNING
         return q.enumerators.AppStatusType.HALTED
 
 
-    def ping(self):
+    def ping(self, appname):
         """
         Checks if workflowengine is still responsive
         """
@@ -115,9 +136,11 @@ class WorkflowEngineManage:
         msg = ''
         
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
+
+        port = TODO
+
         try:
-            sock.connect(('localhost', int(self.config['port'])))
+            sock.connect(('localhost', port))
             sock.sendall(ping)
             sock.settimeout(5)
             msg = sock.recv(30)

@@ -1,14 +1,14 @@
 import sys, traceback
 from signal import signal, SIGTERM
 
-from pymonkey.InitBaseCore import q, i
+from pylabs.InitBaseCore import q, p
 
-from pymonkey.tasklets import TaskletsEngine
-#from pymonkey.logging.logtargets.LogTargetScribe import LogTargetScribe
+#from pylabs.tasklets import TaskletsEngine
+#from pylabs.logging.logtargets.LogTargetScribe import LogTargetScribe
 
 q.application.appname = "workflowengine"
 
-from concurrence import Tasklet, Message, dispatch
+from concurrence import Tasklet, dispatch
 
 from workflowengine.DRPClient import DRPTask
 from workflowengine.SocketServer import SocketTask
@@ -17,20 +17,48 @@ from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
 from workflowengine.DebugInterface import DebugInterface
 
-import workflowengine.ConcurrenceSocket as ConcurrenceSocket
-ConcurrenceSocket.install()
+from workflowengine import getAppName, getPort
 
-initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initSuccess')
-initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
+#import workflowengine.ConcurrenceSocket as ConcurrenceSocket
+#ConcurrenceSocket.install()
+
+initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
+    'workflowengine.%s.initSuccess' % getAppName())
+initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
+    'workflowengine.%s.initFailed' % getAppName())
 
 #LOAD THE TASKLETS OUTSIDE THE DISPATCH: 10 TIMES FASTER.
 q.workflowengine.actionmanager.init()
 q.workflowengine.jobmanager.init()
 
+def getConfig():
+    config = {}
+
+    # Convention-over-configuration
+    # AKA: hard-coded configuration, in this case
+    # These 2 aren't used anyway
+    config['osis_address'] = 'http://localhost/appserver/%s/xmlrpc' % \
+        getAppName()
+    config['osis_service'] = 'osis'
+    config['hostname'] = getAppName()
+    config['agentcontrollerguid'] = 'agentcontroller'
+    config['xmppserver'] = 'localhost'
+    config['password'] = 'agentcontroller'
+
+    config['enable_debug'] = '--debug' in sys.argv
+
+    config['port'] = getPort()
+
+    return config
+
 def main():
 
+    p.api = p.application.getAPI(getAppName())
+
     try:
-        config = i.config.workflowengine.getConfig('main')
+        #config = i.config.workflowengine.getConfig('main')
+        config = getConfig()
+
         enable_debug = config['enable_debug'] == 'True' if 'enable_debug' in config else False
 
         #INITIALIZE THE APPLICATION
@@ -78,7 +106,7 @@ def main():
         if enable_debug:debug_socket_task.start()
 
         drp_task.start()
-        drp_task.connectDRPClient(q.drp)
+        drp_task.connectDRPClient(p.api.model) #q.drp)
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
@@ -86,12 +114,12 @@ def main():
         def clean_jobs():
             # Clean out job db if required
             # Put all running jobs in error with log msg
-            from pymonkey.messages.LogObject import LogObject
-            from pymonkey.messages import toolStripNonAsciFromText
+            from pylabs.messages.LogObject import LogObject
+            from pylabs.messages import toolStripNonAsciFromText
             
-            f = q.drp.job.getFilterObject()
+            f = p.api.model.core.job.getFilterObject()
             f.add('view_job_list', 'jobstatus', 'RUNNING')
-            running_jobs = q.drp.job.find(f)
+            running_jobs = p.api.model.core.job.find(f)
             
             q.logger.log('%s jobs to reset' % len(running_jobs), 1)
             
@@ -104,11 +132,11 @@ def main():
                 
                 for jobguid in running_jobs:
                     try:
-                        job = q.drp.job.get(jobguid)
+                        job = p.api.model.core.job.get(jobguid)
                         job.jobstatus = q.enumerators.jobstatus.ERROR
                         job.log = ( job.log or "") + logentry
                         q.logger.log('Setting running job %s to ERROR' % job.guid, 1)
-                        q.drp.job.save(job)
+                        p.api.model.core.job.save(job)
                     except Exception, e:
                         q.logger.log('Failed to reset job %s: %s' % (jobguid, ex.message), 1)
         

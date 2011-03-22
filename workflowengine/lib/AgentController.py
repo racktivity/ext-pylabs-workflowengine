@@ -1,4 +1,4 @@
-from pymonkey import q
+from pylabs import q
 import yaml
 from concurrence import Tasklet, Message
 from workflowengine.XMPPClient import XMPPClient

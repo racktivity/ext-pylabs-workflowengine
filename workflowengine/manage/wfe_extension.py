@@ -1,5 +1,5 @@
-from pymonkey import q
-from pymonkey.config import ConfigManagementItem, ItemGroupClass
+from pylabs import q
+from pylabs.config import ConfigManagementItem, ItemGroupClass
 
 def inAppserver():
     import threading
@@ -31,8 +31,8 @@ else:
     JobManager = Dummy
     AgentController = Dummy
 
-from workflowengine.QshellDRPClient import DRPClient
-Drp = DRPClient
+#from workflowengine.QshellDRPClient import DRPClient
+#Drp = DRPClient
 
 
 class WFLConfigItem(ConfigManagementItem):

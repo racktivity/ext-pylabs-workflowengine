@@ -1,4 +1,4 @@
-from pymonkey import q
+from pylabs import q
 from socket import *
 from workflowengine.SharedMemory import open_shm, close_shm, write_shm
 from workflowengine.WFLJobManager import WFLJobManager

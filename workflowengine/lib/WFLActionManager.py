@@ -1,14 +1,20 @@
-from pymonkey import q
-from pymonkey.tasklets import TaskletsEngine
+from pylabs import q
+from pylabs.tasklets import TaskletsEngine
 
 from workflowengine.Exceptions import ActionNotFoundException, WFLException
 from workflowengine.WFLJobManager import MSG_JOB_FINISHED
 
+from workflowengine import getAppName
+
 from concurrence import Tasklet, Message
 
-ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
-ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
-RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
+#ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
+#ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
+#RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
+ActorActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
+        getAppName(), 'impl', 'actor')
+RootobjectActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
+        getAppName(), 'impl', 'action')
 
 class MSG_ACTION_CALL(Message): pass
 class MSG_ACTION_NOWAIT(Message): pass
@@ -39,7 +45,7 @@ class WFLActionManager():
 
     def init(self):
         '''
-        Does nothing: used to force pymonkey to create the q-tree mapping and initialize the taskletengine.
+        Does nothing: used to force pylabs to create the q-tree mapping and initialize the taskletengine.
         '''
         pass
 

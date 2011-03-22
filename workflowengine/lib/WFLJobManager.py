@@ -1,4 +1,4 @@
-from pymonkey import q
+from pylabs import q, p
 
 from datetime import datetime
 from time import mktime
@@ -6,7 +6,8 @@ from time import mktime
 from workflowengine.Exceptions import JobNotRunningException, WFLException
 
 from workflowengine.SharedMemory import create_shm, close_shm, write_shm
-import stackless, yaml
+#import stackless, yaml
+import yaml
 import traceback
 
 import sys
@@ -18,7 +19,7 @@ class WFLJobManager:
 
     def init(self):
         '''
-        Does nothing: used to force pymonkey to create the q-tree mapping and initialize the shared memory.
+        Does nothing: used to force pylabs to create the q-tree mapping and initialize the shared memory.
         '''
         pass
 
@@ -33,7 +34,7 @@ class WFLJobManager:
 
     def initializeDebugging(self):
         self.enable_debug = True
-        self.__initSharedMem()
+        #self.__initSharedMem()
 
     def __initSharedMem(self):
         self.__jobs_shm = create_shm("wfe-jobs", 524288)
@@ -328,15 +329,15 @@ class WFLJob:
         """
         Create a new job in the DRP.
         """
-        self.drp_object = q.drp.job.new()
+        self.drp_object = p.api.model.core.job.new()
         self.drp_object.jobstatus = q.enumerators.jobstatus.WAITING
 
     def commit_drp_object(self):
         """
         Commits the job to the DRP.
         """
-        q.drp.job.save(self.drp_object)
-        self.drp_object = q.drp.job.get(self.drp_object.guid)
+        p.api.model.core.job.save(self.drp_object)
+        self.drp_object = p.model.core.job.get(self.drp_object.guid)
 
     """
     @classmethod
