@@ -36,15 +36,14 @@ class WFLActionManager():
 
 
         ###### For synchronous execution ##########
-        from pylabs.tasklets import TaskletsEngine
     	try:
-    	    self.__taskletEngine = TaskletsEngine()
     	    ##create tasklets dir if it doesnt exist
     	    if not q.system.fs.exists(ActorActionTaskletPath):
     		q.system.fs.createDir(ActorActionTaskletPath)
-    	    self.__taskletEngine.addFromPath(ActorActionTaskletPath)
     	    if not q.system.fs.exists(RootobjectActionTaskletPath):
     		q.system.fs.createDir(RootobjectActionTaskletPath)
+
+            self.__taskletEngine = q.taskletengine.get(ActorActionTaskletPath)
     	    self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
     	    self.__engineLoaded = True
     	except Exception, ex:

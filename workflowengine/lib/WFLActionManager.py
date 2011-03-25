@@ -1,7 +1,6 @@
 import os.path
 
 from pylabs import q
-from pylabs.tasklets import TaskletsEngine
 
 from workflowengine.Exceptions import ActionNotFoundException, WFLException
 from workflowengine.WFLJobManager import MSG_JOB_FINISHED
@@ -36,13 +35,13 @@ class WFLActionManager():
     """
 
     def __init__(self):
-        self.__taskletEngine = TaskletsEngine()
         ##create tasklets dir if it doesnt exist
         if not q.system.fs.exists(ActorActionTaskletPath):
             q.system.fs.createDir(ActorActionTaskletPath)
-        self.__taskletEngine.addFromPath(ActorActionTaskletPath)
         if not q.system.fs.exists(RootobjectActionTaskletPath):
             q.system.fs.createDir(RootobjectActionTaskletPath)
+
+        self.__taskletEngine = q.taskletengine.get(ActorActionTaskletPath)
         self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
 
     def init(self):
