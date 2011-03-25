@@ -1,7 +1,7 @@
 from pylabs import q
 
 from osis import init
-from osis.model.serializers import ThriftSerializer
+from pymodel.serializers import ThriftSerializer
 from osis.client.xmlrpc import XMLRPCTransport
 from osis.client import OsisConnection
 from osis.store.OsisDB import OsisDB
