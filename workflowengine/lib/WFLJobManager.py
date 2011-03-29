@@ -337,7 +337,7 @@ class WFLJob:
         Commits the job to the DRP.
         """
         p.api.model.core.job.save(self.drp_object)
-        self.drp_object = p.model.core.job.get(self.drp_object.guid)
+        self.drp_object = p.api.model.core.job.get(self.drp_object.guid)
 
     """
     @classmethod
