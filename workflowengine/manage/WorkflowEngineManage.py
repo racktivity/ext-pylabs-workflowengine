@@ -40,7 +40,7 @@ class WorkflowEngineManage:
             port = config['port']
 
             workflowengineProcess =  '%s %s --appname=%s --port=%d' % \
-                (self.stacklessBin, self.workflowengineBin, appname, port)
+                (self.stacklessBin, self.workflowengineBin, appname, int(port))
 
             if q.system.process.getProcessByPort(port) <> None:
                 print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(port)))
