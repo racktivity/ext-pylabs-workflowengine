@@ -200,7 +200,8 @@ def inheritFromParent(childjob, parentjob):
     for field in ['name', 'description', 'userErrormsg', 'internalErrormsg', 'maxduration']:
         setattr(childjob, field, getattr(parentjob, field))
 
-def fillInExecutionparams(job, executionparams={}):
+def fillInExecutionparams(job, executionparams=None):
+    executionparams = executionparams or {}
     for field in ['name', 'description', 'userErrormsg', 'internalErrormsg', 'maxduration', 'clouduserguid', 'rootobjecttype', 'rootobjectguid']:
         if executionparams.has_key(field):
             setattr(job, field, executionparams[field])
@@ -211,7 +212,7 @@ def getUnixTimestamp():
 
 class WFLJob:
 
-    def __init__(self, parentjob=None, actionName=None, executionparams={}, agentguid=None, params=""):
+    def __init__(self, parentjob=None, actionName=None, executionparams=None, agentguid=None, params=""):
         """
         Creates a new job in the DRP and returns an instance of WFLJob. The WFLJob contains a disconnected job object and adds extra functionality.
 
@@ -231,6 +232,7 @@ class WFLJob:
         self.runningJobsInTree = 0
         self.childJobs = 0
 
+        executionparams = executionparams or {}
         fillInExecutionparams(self.drp_object, executionparams)
 
         if parentjob:
