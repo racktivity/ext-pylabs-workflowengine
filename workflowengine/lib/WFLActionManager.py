@@ -140,7 +140,7 @@ class WFLActionManager():
         @raise ActionNotFoundException:        In case no actions are found for the specified rootobjectname and actoraction
         @raise e:                              In case an error occurred, exception is raised
         """
-        path = os.path.join(RootobjectActionTaskletPath)
+        path = RootobjectActionTaskletPath
 
         if len(self.__taskletEngine.find(tags=(domainname, rootobjectname, actionname), path=path)) == 0:
             raise ActionNotFoundException("RootobjectAction", domainname, rootobjectname, actionname)

@@ -102,10 +102,10 @@ class WFLAgentController:
         @raise AgentNotAvailableException:     If the agent is not available when starting the script, the script is not be started.
         @raise ScriptFailedException:             If an exception occurres on the agent while executing the script.
         """
-        (actorname, actionname) = Tasklet.current().tags
-        scriptpath = q.system.fs.joinPaths(ActorActionTaskletPath, actorname, actionname, ActorActionScriptFolder, scriptname + ".rscript")
+        (domain, actorname, actionname) = Tasklet.current().tags
+        scriptpath = q.system.fs.joinPaths(ActorActionTaskletPath, domain, actorname, actionname, ActorActionScriptFolder, scriptname + ".rscript")
         if not q.system.fs.exists(scriptpath):
-            raise ActionNotFoundException("ActorActionScript", actorname+"."+actionname, scriptname)
+            raise ActionNotFoundException("ActorActionScript", domain + "." + actorname + "." + actionname, scriptname)
         else:
             return self.executeScript(agentguid, actorname+"."+actionname+"."+scriptname, scriptpath, params, executionparams, jobguid)
 
