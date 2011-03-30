@@ -1,4 +1,4 @@
-from pylabs import q
+from pylabs import q, p
 import signal, time
 import yaml
 import socket
