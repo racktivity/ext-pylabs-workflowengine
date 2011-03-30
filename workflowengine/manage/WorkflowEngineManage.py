@@ -158,7 +158,7 @@ class WorkflowEngineManage:
             raise ValueError('No WFE configuration found for application %s' % appname)
         
         f = q.tools.inifile.open(config_path)
-        config = f.getFileAsDict()['main']
+        config = f.getFileAsDict()
         
         if not config.has_key('main'):
             raise ValueError('No valid WFE configuration found for application %s' % appname)
