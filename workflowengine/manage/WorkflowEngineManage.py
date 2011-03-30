@@ -36,7 +36,8 @@ class WorkflowEngineManage:
         if self.getStatus(appname) == q.enumerators.AppStatusType.RUNNING:
             print "The workflowengine is already running."
         else:
-            port = 9876
+            config = self.getConfig(appname)
+            port = config['port']
 
             workflowengineProcess =  '%s %s --appname=%s --port=%d' % \
                 (self.stacklessBin, self.workflowengineBin, appname, port)
@@ -137,7 +138,8 @@ class WorkflowEngineManage:
         
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        port = 9876 # TODO 
+        config = self.getConfig(appname)
+        port = config['port']
 
         try:
             sock.connect(('localhost', port))
@@ -148,3 +150,17 @@ class WorkflowEngineManage:
             return False
         sock.close()
         return 'pong' in msg
+    
+    def getConfig(self, appname):
+        config_path = q.system.fs.joinPaths(q.dirs.pyAppsDir, p.api.appname, 'cfg', 'wfe.cfg')
+        
+        if not q.system.fs.exists(config_path):
+            raise ValueError('No WFE configuration found for application %s' % appname)
+        
+        f = q.tools.inifile.open(config_path)
+        config = f.getFileAsDict()['main']
+        
+        if not config.has_key('main'):
+            raise ValueError('No valid WFE configuration found for application %s' % appname)
+
+        return config['main']

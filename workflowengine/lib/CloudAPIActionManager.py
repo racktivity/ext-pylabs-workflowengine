@@ -22,11 +22,12 @@ class WFLActionManager():
     """
     def __init__(self):
         self.factory = YamlClientFactory(self._receivedData)
-        #config = i.config.workflowengine.getConfig('main')
+        
+        self.config = q.manage.workflowengine.getConfig(p.api.appname)
 
         def _do_connect():
-            #reactor.connectTCP('localhost', int(config['port']), self.factory)
-            reactor.connectTCP('localhost', 9876, self.factory)
+            reactor.connectTCP('localhost', int(self.config['port']), self.factory)
+            
         reactor.callInThread(_do_connect)
 
         self.running = {}
