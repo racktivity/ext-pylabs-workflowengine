@@ -36,19 +36,19 @@ class WFLActionManager():
 
 
         ###### For synchronous execution ##########
-    	try:
-    	    ##create tasklets dir if it doesnt exist
-    	    if not q.system.fs.exists(ActorActionTaskletPath):
-    		q.system.fs.createDir(ActorActionTaskletPath)
-    	    if not q.system.fs.exists(RootobjectActionTaskletPath):
-    		q.system.fs.createDir(RootobjectActionTaskletPath)
+        try:
+            ##create tasklets dir if it doesnt exist
+            if not q.system.fs.exists(ActorActionTaskletPath):
+                q.system.fs.createDir(ActorActionTaskletPath)
+            if not q.system.fs.exists(RootobjectActionTaskletPath):
+                q.system.fs.createDir(RootobjectActionTaskletPath)
 
             self.__taskletEngine = q.taskletengine.get(ActorActionTaskletPath)
-    	    self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
-    	    self.__engineLoaded = True
-    	except Exception, ex:
-    	    self.__engineLoaded = False
-    	    self.__error = ex
+            self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
+            self.__engineLoaded = True
+        except Exception, ex:
+            self.__engineLoaded = False
+            self.__error = ex
         ###### /For synchronous execution ##########
 
     def _receivedData(self, data):
@@ -68,7 +68,7 @@ class WFLActionManager():
 
         # For backwards compatibility
         # If called not explicitely, wait for result
-	if not 'wait' in executionparams:
+        if not 'wait' in executionparams:
             executionparams['wait'] = True
 
         return self.startRootobjectActionAsynchronous(domainname, rootobjectname, actionname, params, executionparams, jobguid)
@@ -105,15 +105,15 @@ class WFLActionManager():
 
     def startRootobjectActionSynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):        
 
-    	if not self.__engineLoaded:
-    	    raise Exception(self.__error)
+        if not self.__engineLoaded:
+            raise Exception(self.__error)
 
         path = os.path.join(RootobjectActionTaskletPath, domainname)
 
         if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=path)) == 0:
-            raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
+            raise ActionNotFoundException("RootobjectAction", domainname, rootobjectname, actionname)
 
-        self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=path)
+        self.__taskletEngine.execute(params, tags=(domainname, rootobjectname, actionname), path=path)
 
         result = {'jobguid': None, 'result': params.get('result', None)}
 

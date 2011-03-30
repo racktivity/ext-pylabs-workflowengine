@@ -40,13 +40,14 @@ class JobNotRunningException(Exception):
 
 
 class ActionNotFoundException(Exception):
-    def __init__(self, type=None, object=None, name=None):
+    def __init__(self, type=None, domainname=None, object=None, name=None):
         self.type = type
+        self.domainname = domainname
         self.object = object
         self.name = name
 
     def __str__(self):
-        return str(self.type) + " not found: " + str(self.object) + "." + str(self.name)
+        return str(self.type) + " not found: " + str(self.domainname) + "." + str(self.object) + "." + str(self.name)
 
 
 class ScriptFailedException(Exception):

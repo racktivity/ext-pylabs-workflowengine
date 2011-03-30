@@ -50,7 +50,7 @@ class WFLActionManager():
         '''
         pass
 
-    def startActorAction(self, actorname, actionname, params, executionparams={}, jobguid=None):
+    def startActorAction(self, domainname, actorname, actionname, params, executionparams={}, jobguid=None):
         """
         Starts a given Actor Action. Uses the tasklet engine to run the matching tasklets.
 
@@ -62,6 +62,9 @@ class WFLActionManager():
         The guid of the job in which the action is executed, will be added to params: params['jobguid'].
         The tasklets executing in the Actor Action have to add their result in params['result']. The dictionary returned by startActorAction contains this result, under the 'result' key.
 
+        @param domainname:                     Name of the domain of the actor action.
+        @type domainname:                      string
+    
         @param actorname:                      Name of the actor of the actor action.
         @type actorname:                       string
 
@@ -83,18 +86,18 @@ class WFLActionManager():
         @raise ActionNotFoundException:        In case no actions are found for the specified actorname and actoraction
         @raise e:                              In case an error occurred, exception is raised
         """
-        if len(self.__taskletEngine.find(tags=(actorname, actionname), path=ActorActionTaskletPath)) == 0:
-            raise ActionNotFoundException("ActorAction", actorname, actionname)
+        if len(self.__taskletEngine.find(tags=(domainname, actorname, actionname), path=ActorActionTaskletPath)) == 0:
+            raise ActionNotFoundException("ActorAction", domainname, actorname, actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or Tasklet.current().jobguid
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
            raise Exception("Can't create child jobs: the job is killed !")
         
-        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams, params=str(params))
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, domainname+"."+actorname+"."+actionname, executionparams, params=str(params))
         #START A NEW TASKLET FOR THE JOB
 
         q.workflowengine.jobmanager.startJob(jobguid)
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (actorname, actionname), ActorActionTaskletPath)
+        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (domainname, actorname, actionname), ActorActionTaskletPath)
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
         if msg.match(MSG_ACTION_NOWAIT):
@@ -137,10 +140,10 @@ class WFLActionManager():
         @raise ActionNotFoundException:        In case no actions are found for the specified rootobjectname and actoraction
         @raise e:                              In case an error occurred, exception is raised
         """
-        path = os.path.join(RootobjectActionTaskletPath, domainname)
+        path = os.path.join(RootobjectActionTaskletPath)
 
-        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=path)) == 0:
-            raise ActionNotFoundException("RootobjectAction", '%s.%s' % (domainname, rootobjectname), actionname)
+        if len(self.__taskletEngine.find(tags=(domainname, rootobjectname, actionname), path=path)) == 0:
+            raise ActionNotFoundException("RootobjectAction", domainname, rootobjectname, actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or (hasattr(Tasklet.current(), 'jobguid') and Tasklet.current().jobguid) or None
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
@@ -150,7 +153,7 @@ class WFLActionManager():
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
 
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (rootobjectname, actionname), path)
+        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (domainname, rootobjectname, actionname), path)
 
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
