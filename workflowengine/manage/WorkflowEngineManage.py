@@ -152,7 +152,7 @@ class WorkflowEngineManage:
         return 'pong' in msg
     
     def getConfig(self, appname):
-        config_path = q.system.fs.joinPaths(q.dirs.pyAppsDir, p.api.appname, 'cfg', 'wfe.cfg')
+        config_path = q.system.fs.joinPaths(q.dirs.pyAppsDir, appname, 'cfg', 'wfe.cfg')
         
         if not q.system.fs.exists(config_path):
             raise ValueError('No WFE configuration found for application %s' % appname)
