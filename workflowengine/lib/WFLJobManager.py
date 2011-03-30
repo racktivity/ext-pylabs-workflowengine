@@ -3,13 +3,11 @@ from pymonkey import q
 from datetime import datetime
 from time import mktime
 
-from workflowengine.Exceptions import JobNotRunningException, WFLException
+from workflowengine.Exceptions import JobNotRunningException
 
-from workflowengine.SharedMemory import create_shm, close_shm, write_shm
-import stackless, yaml
+from workflowengine.SharedMemory import create_shm, write_shm
+import stackless
 import traceback
-
-import sys
 
 from concurrence import Tasklet, Message
 class MSG_JOB_FINISHED(Message): pass
@@ -199,7 +197,10 @@ def inheritFromParent(childjob, parentjob):
     for field in ['name', 'description', 'userErrormsg', 'internalErrormsg', 'maxduration']:
         setattr(childjob, field, getattr(parentjob, field))
 
-def fillInExecutionparams(job, executionparams={}):
+def fillInExecutionparams(job, executionparams=None):
+    if executionparams is None:
+        executionparams = dict()
+
     for field in ['name', 'description', 'userErrormsg', 'internalErrormsg', 'maxduration', 'clouduserguid', 'rootobjecttype', 'rootobjectguid']:
         if executionparams.has_key(field):
             setattr(job, field, executionparams[field])
