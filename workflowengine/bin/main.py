@@ -53,7 +53,7 @@ def getConfig():
 
 def main():
 
-    p.api = p.application.getAPI(getAppName())
+    p.api = p.application.getAPI(getAppName(), context=q.enumerators.AppContext.WFE)
 
     try:
         #config = i.config.workflowengine.getConfig('main')
