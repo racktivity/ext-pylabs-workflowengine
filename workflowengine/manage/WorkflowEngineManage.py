@@ -37,7 +37,7 @@ class WorkflowEngineManage:
             print "The workflowengine is already running."
         else:
             config = self.getConfig(appname)
-            port = config['port']
+            port = int(config['port'])
 
             workflowengineProcess =  '%s %s --appname=%s --port=%d' % \
                 (self.stacklessBin, self.workflowengineBin, appname, int(port))
