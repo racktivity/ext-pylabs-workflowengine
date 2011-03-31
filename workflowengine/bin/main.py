@@ -118,7 +118,7 @@ def main():
             from pylabs.messages import toolStripNonAsciFromText
             
             f = p.api.model.core.job.getFilterObject()
-            f.add('view_job_list', 'jobstatus', 'RUNNING')
+            f.add('core_view_job_list', 'jobstatus', 'RUNNING')
             running_jobs = p.api.model.core.job.find(f)
             
             q.logger.log('%s jobs to reset' % len(running_jobs), 1)
