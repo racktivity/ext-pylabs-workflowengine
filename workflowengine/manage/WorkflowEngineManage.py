@@ -1,4 +1,4 @@
-from pylabs import q, p
+from pylabs import q
 import signal, time
 import yaml
 import socket
@@ -40,7 +40,7 @@ class WorkflowEngineManage:
             port = int(config['port'])
 
             workflowengineProcess =  '%s %s --appname=%s --port=%d' % \
-                (self.stacklessBin, self.workflowengineBin, appname, int(port))
+                (self.stacklessBin, self.workflowengineBin, appname, port)
 
             if q.system.process.getProcessByPort(port) <> None:
                 print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(port)))
@@ -139,7 +139,7 @@ class WorkflowEngineManage:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         config = self.getConfig(appname)
-        port = config['port']
+        port = int(config['port'])
 
         try:
             sock.connect(('localhost', port))
