@@ -5,7 +5,7 @@ from twisted.internet import protocol, reactor
 from workflowengine.Exceptions import ActionNotFoundException
 from workflowengine import getAppName
 
-from pylabs import q, i, p
+from pylabs import q, p
 
 #ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
 #ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
@@ -105,20 +105,24 @@ class WFLActionManager():
             raise data['exception']
 
     def startRootobjectActionSynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):        
-
         if not self.__engineLoaded:
             raise Exception(self.__error)
 
         path = os.path.join(RootobjectActionTaskletPath, domainname)
+        tags = (domainname, rootobjectname, actionname)
 
-        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=path)) == 0:
+        q.logger.log("Finding tasklets for path %s and tags %s" % (path, tags), 7)
+
+        tasklets = self.__taskletEngine.find(tags=tags, path=path)
+        if not tasklets:
             raise ActionNotFoundException("RootobjectAction", domainname, rootobjectname, actionname)
 
-        self.__taskletEngine.execute(params, tags=(domainname, rootobjectname, actionname), path=path)
+        self.__taskletEngine.execute(params, tags=tags, path=path)
 
         result = {'jobguid': None, 'result': params.get('result', None)}
 
         return result
+
 
 class ActionUnavailableException(Exception):
     def __init__(self):
