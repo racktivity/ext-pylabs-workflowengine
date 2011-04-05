@@ -26,8 +26,8 @@ class DRPInterface():
         self.__name = name
         self.__drp = drp
 
-    def get(self, guid, version=None):
-        return self.__drp.sendToDrp(self._domain, self.__name, 'get', guid, version)
+    def get(self, guid):
+        return self.__drp.sendToDrp(self._domain, self.__name, 'get', guid)
 
     def save(self, object_):
         return self.__drp.sendToDrp(self._domain, self.__name, 'save', object_)
@@ -44,8 +44,8 @@ class DRPInterface():
     def query(self, query):
         return self.__drp.sendToDrp(self._domain, self.__name, 'query', query)
 
-    def delete(self, guid, version=None):
-        return self.__drp.sendToDrp(self._domain, self.__name, 'delete', guid, version)
+    def delete(self, guid):
+        return self.__drp.sendToDrp(self._domain, self.__name, 'delete', guid)
 
     @staticmethod
     def getFilterObject():
