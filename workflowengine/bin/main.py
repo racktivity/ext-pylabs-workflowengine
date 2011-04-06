@@ -1,4 +1,7 @@
-import sys, traceback
+import sys
+import os
+import traceback
+
 from signal import signal, SIGTERM
 
 from pylabs.InitBaseCore import q, p
@@ -97,8 +100,25 @@ def main():
         #SETUP THE SIGNAL HANDLER: CLOSE THE SOCKET ON EXIT
         def sigterm_received():
             q.logger.log('Received SIGTERM: shutting down.')
-            socket_task.stop()
-            sys.exit(-SIGTERM)
+
+            try:
+                socket_task.stop()
+            except Exception, exc:
+                q.logger.log(
+                    'Error while shutting down socket task: %s' % exc, 1)
+            except:
+                q.logger.log('Error while shutting down socket task', 1)
+
+            try:
+                sys.exit(-SIGTERM)
+            except Exception, exc:
+                q.logger.log('Error while calling sys.exit: %s' % exc, 1)
+            except:
+                q.logger.log('Error while calling sys.exit', 1)
+
+            # This should not be reached, unless something goes wrong above
+            os._exit(-SIGTERM)
+
         signal(SIGTERM, lambda signum, stack_frame: sigterm_received())
 
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
