@@ -52,7 +52,7 @@ class WorkflowEngineManage:
         """
         if self.getStatus() == q.enumerators.AppStatusType.RUNNING:
             print "Stopping the workflowengine."
-            q.system.process.kill(int(self._getPid()), sig=signal.SIGTERM)
+            q.system.process.kill(int(self._getPid()))
 
             i = 10
             while self.ping() or q.system.process.isPidAlive(int(self._getPid())):
