@@ -17,7 +17,7 @@ class WorkflowEngineManage:
     #initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
     #config = i.config.workflowengine.getConfig('main')
 
-    def start(self, appname):
+    def start(self, appname, debug=False):
         """
         Start workflow engine
         """
@@ -51,7 +51,15 @@ class WorkflowEngineManage:
                     print "Starting the workflowengine."
                     for file in [pidFile, stdoutFile, stderrFile, initSuccessFile, initFailedFile]:
                         if q.system.fs.exists(file): q.system.fs.remove(file)
-                    pid = q.system.process.runDaemon(workflowengineProcess, stdout=stdoutFile,  stderr=stderrFile)
+                    if not debug:
+                        pid = q.system.process.runDaemon(workflowengineProcess, stdout=stdoutFile,  stderr=stderrFile)
+                    else:
+                        q.system.process.execute("screen -dmS wfe %s" % workflowengineProcess)
+                        pids = q.system.process.getProcessPid(workflowengineProcess)
+                        if pids:
+                            pid = max(pids)
+                        else:
+                            raise RuntimeError("Failed to start Workfflowengine %s" % appname)
                     q.system.fs.writeFile(pidFile, str(pid))
 
                     print " Waiting for initialization"
@@ -86,12 +94,12 @@ class WorkflowEngineManage:
         else:
             print "The workflowengine is not running."
 
-    def restart(self, appname):
+    def restart(self, appname, debug=False):
         """
         Restart workflow engine
         """
         self.stop(appname)
-        self.start(appname)
+        self.start(appname, debug)
 
     def kill(self, appname):
         """
