@@ -243,6 +243,15 @@ class WFLJob:
             #inherit the clouduserguid from parent job if not already set
             self.drp_object.clouduserguid = self.drp_object.clouduserguid or parentjob.drp_object.clouduserguid
 
+            #inherit maxduration from parentjob
+            if parentjob.drp_object.maxduration and not self.drp_object.maxduration:
+                self.drp_object.maxduration = parentjob.drp_object.maxduration
+
+        if not self.drp_object.maxduration:
+            self.drp_object.maxduration = 86400 # set maxduration to 1 day if not specified
+
+        q.logger.log('MARCTEST : WFLJob %s maxduration = %s'%(actionName, self.drp_object.maxduration),3)
+
         self.drp_object.actionName = actionName
         self.drp_object.agentguid = agentguid
         self.drp_object.params = params
