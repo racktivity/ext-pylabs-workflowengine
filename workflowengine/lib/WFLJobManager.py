@@ -250,8 +250,6 @@ class WFLJob:
         if not self.drp_object.maxduration:
             self.drp_object.maxduration = 86400 # set maxduration to 1 day if not specified
 
-        q.logger.log('MARCTEST : WFLJob %s maxduration = %s'%(actionName, self.drp_object.maxduration),3)
-
         self.drp_object.actionName = actionName
         self.drp_object.agentguid = agentguid
         self.drp_object.params = params
