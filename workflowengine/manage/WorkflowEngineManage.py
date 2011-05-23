@@ -54,7 +54,7 @@ class WorkflowEngineManage:
                     if not debug:
                         pid = q.system.process.runDaemon(workflowengineProcess, stdout=stdoutFile,  stderr=stderrFile)
                     else:
-                        q.system.process.execute("screen -dmS wfe %s" % workflowengineProcess)
+                        q.system.process.execute("screen -dmS wfe.%s %s" %(appname, workflowengineProcess))
                         pids = q.system.process.getProcessPid(workflowengineProcess)
                         if pids:
                             pid = max(pids)
