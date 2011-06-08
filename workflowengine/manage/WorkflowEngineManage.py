@@ -35,6 +35,7 @@ class WorkflowEngineManage:
 
         if self.getStatus(appname) == q.enumerators.AppStatusType.RUNNING:
             print "The workflowengine is already running."
+            return True
         else:
             config = self.getConfig(appname)
             port = int(config['port'])
@@ -44,9 +45,11 @@ class WorkflowEngineManage:
 
             if q.system.process.getProcessByPort(port) <> None:
                 print "Cannot start the workflowengine: another process is holding port %i: %s." % ( port, str(q.system.process.getProcessByPort(port)))
+                return False
             else:
                 if q.system.process.checkProcess(workflowengineProcess) == 0:
                     print "Cannot start the workflowengine: an other instance of the workflowengine is running."
+                    return False
                 else:
                     print "Starting the workflowengine."
                     for file in [pidFile, stdoutFile, stderrFile, initSuccessFile, initFailedFile]:
@@ -68,9 +71,11 @@ class WorkflowEngineManage:
 
                     if q.system.fs.exists(initSuccessFile):
                         print "Workflowengine started"
+                        return True
                     else:
                         print "INITIALIZATION FAILED, WORKFLOWENGINE NOT STARTED !"
                         print "  " + q.system.fs.fileGetContents(stderrFile).replace("\n", "\n  ")
+                        return False
 
     def stop(self, appname):
         """
@@ -88,11 +93,13 @@ class WorkflowEngineManage:
                     time.sleep(1)
                 else:
                     print "Could not stop the workflowengine. Next step: kill it with q.manage.workflowengine.kill()."
-                    return
+                    return False
 
             print "Stopped the workflowengine."
+            return True
         else:
             print "The workflowengine is not running."
+            return True
 
     def restart(self, appname, debug=False):
         """
