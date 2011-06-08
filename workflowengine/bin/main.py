@@ -153,7 +153,7 @@ def main():
                 for jobguid in running_jobs:
                     try:
                         job = p.api.model.core.job.get(jobguid)
-                        job.jobstatus = q.enumerators.jobstatus.ERROR
+                        job.jobstatus = p.api.model.enumerators.jobstatus.ERROR
                         job.log = ( job.log or "") + logentry
                         q.logger.log('Setting running job %s to ERROR' % job.guid, 1)
                         p.api.model.core.job.save(job)

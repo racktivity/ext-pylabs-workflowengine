@@ -147,7 +147,7 @@ class WFLJobManager:
 
     def registerJobFinishedCallback(self, jobguid):
         job = self.__getJob(jobguid)
-        if job.drp_object.jobstatus is q.enumerators.jobstatus.WAITING or job.drp_object.jobstatus is q.enumerators.jobstatus.RUNNING:
+        if job.drp_object.jobstatus is p.api.model.enumerators.jobstatusumerators.jobstatus.WAITING or job.drp_object.jobstatus is p.api.model.enumerators.jobstatus.RUNNING:
             job.jobFinishedCallbacks.append(Tasklet.current())
         else:
             self.__notifyJobFinishedCallback(Tasklet.current(), job)
@@ -167,9 +167,9 @@ class WFLJobManager:
             self.__notifyJobFinishedCallback(tasklet, job)
 
     def __notifyJobFinishedCallback(self, tasklet, job):
-        if job.drp_object.jobstatus is q.enumerators.jobstatus.DONE:
+        if job.drp_object.jobstatus is p.api.model.enumerators.jobstatus.DONE:
             MSG_JOB_FINISHED.send(tasklet)(job.drp_object.guid, 'DONE', job.result)
-        elif job.drp_object.jobstatus is q.enumerators.jobstatus.ERROR:
+        elif job.drp_object.jobstatus is p.api.model.enumerators.jobstatus.ERROR:
             MSG_JOB_FINISHED.send(tasklet)(job.drp_object.guid, 'ERROR', job.exception)
 
     def killJob(self, jobguid):
@@ -266,7 +266,7 @@ class WFLJob:
         return self.ancestor is self
 
     def start(self):
-        self.drp_object.jobstatus = q.enumerators.jobstatus.RUNNING
+        self.drp_object.jobstatus = p.api.model.enumerators.jobstatus.RUNNING
         self.drp_object.starttime = datetime.now()
         self.drp_object.log = ""
         self.commit_drp_object()
@@ -292,14 +292,14 @@ class WFLJob:
 
     def done(self, result):
         """
-        Should be called if the job has finished: sets the status to q.enumerators.jobstatus.DONE, sets the timing information and commits the job to the DRP.
+        Should be called if the job has finished: sets the status to p.api.model.enumerators.jobstatus.DONE, sets the timing information and commits the job to the DRP.
 
         @raise JobNotRunningException: if the job is not running
         """
-        if self.drp_object.jobstatus <> q.enumerators.jobstatus.RUNNING:
+        if self.drp_object.jobstatus <> p.api.model.enumerators.jobstatus.RUNNING:
             raise JobNotRunningException(self.drp_object.guid, self.drp_object.jobstatus)
 
-        self.drp_object.jobstatus = q.enumerators.jobstatus.DONE
+        self.drp_object.jobstatus = p.api.model.enumerators.jobstatus.DONE
         self.drp_object.endtime = datetime.now()
         import ast
         try:
@@ -318,10 +318,10 @@ class WFLJob:
         @param exception: the exception to log.
         @raise JobNotRunningException: if the job is not running
         """
-        if self.drp_object.jobstatus <> q.enumerators.jobstatus.RUNNING:
+        if self.drp_object.jobstatus <> p.api.model.enumerators.jobstatus.RUNNING:
             raise JobNotRunningException(self.drp_object.guid, self.drp_object.jobstatus)
 
-        self.drp_object.jobstatus = q.enumerators.jobstatus.ERROR
+        self.drp_object.jobstatus = p.api.model.enumerators.jobstatus.ERROR
         self.drp_object.endtime = datetime.now()
         self.log(str(exception), 1, "Exception occured")
         self.exception = exception
@@ -332,7 +332,7 @@ class WFLJob:
         Create a new job in the DRP.
         """
         self.drp_object = p.api.model.core.job.new()
-        self.drp_object.jobstatus = q.enumerators.jobstatus.WAITING
+        self.drp_object.jobstatus = p.api.model.enumerators.jobstatus.WAITING
 
     def commit_drp_object(self):
         """
