@@ -5,7 +5,7 @@ def main(q, i, p, params, tags):
     # rootobjecttype: machine, application, datacenter
     # fromTime/endTime: YYYY-MM-DD hh:mm:ss
     baseQuery = 'select guid as jobguid, clouduserguid, rootobjectguid, description, parentjobguid, viewguid,\
-                 jobstatus, "version", rootobjecttype, actionname, agentguid, starttime, endtime, "name" from core_job.core_view_job_list'
+                 jobstatus, rootobjecttype, actionname, agentguid, starttime, endtime, "name" from core_job.core_view_job_list'
     conditionQuery = list()
     filters = {'view_job_list': ['name', 'actionname', 'description', 'jobstatus', 'agentguid', 'clouduserguid',
                                  'applicationguid', 'machineguid', 'datacenterguid', 'fromTime', 'toTime', 'parentjobguid']}
