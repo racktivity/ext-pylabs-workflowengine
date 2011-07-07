@@ -10,7 +10,7 @@ def main(q, i, p, params, tags):
                 JOBLIST.starttime,
                 JOBLIST.endtime,
                 JOBLIST.jobstatus,
-                JOBLIST.joborder,
+                JOBLIST.joborder
                 FROM ONLY core_job.core_view_job_list JOBLIST
                 where JOBLIST.guid in (
                                                 WITH RECURSIVE childjobs AS
