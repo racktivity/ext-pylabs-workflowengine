@@ -26,7 +26,7 @@ def main(q, i, params, tags):
         view.setCol('clouduserguid', q.enumerators.OsisType.UUID, True)
         view.setCol('rootobjecttype', q.enumerators.OsisType.STRING, True)
         view.setCol('rootobjectguid', q.enumerators.OsisType.UUID, True)
-        view.setCol('agentguid', q.enumerators.OsisType.UUID, True)
+        view.setCol('agentguid', q.enumerators.OsisType.STRING, True)
         view.setCol('log',q.enumerators.OsisType.TEXT,True)
         view.setCol('creationdate',q.enumerators.OsisType.DATETIME,True)
         connection.viewAdd(view)
