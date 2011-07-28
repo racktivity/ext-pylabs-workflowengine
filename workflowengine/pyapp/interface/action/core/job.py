@@ -59,12 +59,15 @@ class job:
         @returns array of array [[...]]
         """
 
-    def getLogInfo(self,jobguid,MaxLogLevel=5, executionparams=None):
+    def getLogInfo(self,rootobjectguid, jobguid='', MaxLogLevel=5, executionparams=None):
         """
         return log info as string
         @todo define format
         
         @execution_method = sync
+
+        @param rootobjectguid:   guid of the job rootobject
+        @type rootobjectguid:    guid
 
         @param jobguid:          guid of the job if available else empty string
         @type jobguid:           guid
