@@ -7,21 +7,16 @@ def main(q, i, p, params, tags):
     baseQuery = 'select guid as jobguid, clouduserguid, rootobjectguid, description, parentjobguid, viewguid,\
                  jobstatus, rootobjecttype, actionname, agentguid, starttime, endtime, "name" from core_job.core_view_job_list'
     conditionQuery = list()
-    filters = {'view_job_list': ['name', 'actionname', 'description', 'jobstatus', 'agentguid', 'clouduserguid',
-                                 'applicationguid', 'machineguid', 'datacenterguid', 'fromTime', 'toTime', 'parentjobguid']}
+    filters = ['name', 'actionname', 'description', 'jobstatus', 'agentguid', 'clouduserguid',
+                                 'rootobjectguid', 'rootobjecttype', 'fromTime', 'toTime', 'parentjobguid']
     filterOptions = {'fromTime' :   ['starttime','>= '],
                      'toTime'   :   ['endtime','<= ']}
-    roMapping = {'applicationguid':'application','machineguid':'machine','datacenterguid':'datacenter'}
-    for filterName,filterKeys in filters.iteritems():
-        for filterType in filterKeys:
-            if filterType in params and params[filterType] not in ('',0):
-                if filterType in roMapping:
-                    conditionQuery.append("rootobjectguid = '%s'"%params[filterType])
-                    conditionQuery.append("rootobjecttype = '%s'"%roMapping[filterType])
-                else:
-                    conditionQuery.append("%s %s '%s'"%(filterType if filterType not in filterOptions else filterOptions[filterType][0],
-                                                        '=' if filterType not in filterOptions else filterOptions[filterType][1],
-                                                        params[filterType]))
+    for filterType in filters:
+        value = params.get(filterType, '')
+        if value not in ('',0):
+            default = [filterType, "="]
+            filter_ = filterOptions.get(filterType, default)
+            conditionQuery.append("%s %s '%s'" % (filter_[0], filter_[1], value))
     if conditionQuery:
         baseQuery += ' where %s'%' AND '.join(conditionQuery)
        

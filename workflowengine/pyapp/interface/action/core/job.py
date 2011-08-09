@@ -19,24 +19,18 @@ class job:
         @raise e:                In case an error occurred, exception is raised
         """
 
-    def find(self, actionname="", agentguid="",machineguid="",applicationguid="",datacenterguid="",fromTime="",toTime="",clouduserguid="",jobstatus='', jobguid="",executionparams=None):
+    def find(self, actionname="", agentguid="",rootobjectguid="",rootobjecttype="", fromTime="",toTime="",clouduserguid="",jobstatus='', jobguid="",executionparams=None):
         """        
         @execution_method = sync
         
         @param actionname:       actionname of the jobs to find
         @type actionname:        string
 
-        @param agentguid:        agentguid of the jobs to find
-        @type agentguid:         guid
+        @param rootobjectguid:   rootobjectguid of the jobs to find
+        @type rootobjectguid:    guid
 
-        @param machineguid:      machineguid of the jobs to find
-        @type machineguid:       guid
-
-        @param applicationguid:  applicationguid of the jobs to find
-        @type applicationguid:   guid
-
-        @param datacenterguid:   datacenterguid of the jobs to find
-        @type datacenterguid:    guid
+        @param rootobjecttype:   rootobjecttype of the jobs to find
+        @type rootobjecttype:    guid
 
         @param fromTime:         starttime of the jobs to find (equal or greater than)
         @type fromTime:          datetime
