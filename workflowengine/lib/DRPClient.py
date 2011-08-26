@@ -9,6 +9,7 @@ from osis.store.OsisFilterObject import OsisFilterObject
 from concurrence import Tasklet, Message
 
 from workflowengine.Exceptions import WFLException
+from workflowengine.xmlrpc import ConcurrenceOsisXMLRPCTransport
 
 import uuid
 
@@ -77,7 +78,7 @@ class BufferedDRPInterface():
             guid = None
         if not guid:
             object_.guid = str(uuid.uuid4())
-        
+
         self.__buffer[object_.guid] = object_
 
     def new(self, *args, **kwargs):
@@ -117,13 +118,15 @@ class DRPTask:
         init(q.system.fs.joinPaths(q.dirs.baseDir, 'libexec','osis'))
 
         try:
-            self.connection = OsisConnection(XMLRPCTransport(address, service), ThriftSerializer)
+            #self.connection = OsisConnection(XMLRPCTransport(address, service), ThriftSerializer)
+            transport = ConcurrenceOsisXMLRPCTransport(address, service)
+            self.connection = OsisConnection(transport, ThriftSerializer)
         except:
             q.logger.log("[DRPTask] Failed to initialize the OSIS application server service connection.", 1)
             raise
 
         self.__tasklet = None
-        
+
         self.__buffers = {}
         self.__buffer_tasklet = None
 
@@ -172,22 +175,22 @@ class DRPTask:
                     MSG_DRP_EXCEPTION.send(caller)(WFLException.create(e))
                 else:
                     MSG_DRP_RETURN.send(caller)(result)
-    
+
     def __buffer_run(self):
         ''' Flush the buffers to OSIS every second '''
         while True:
             for buffer_name in self.__buffers:
                 self.commit_buffer(buffer_name, self.__buffers[buffer_name])
             Tasklet.sleep(1)
-    
+
     def commit_buffer(self, name, buffer):
         ''' Commit 1 buffer to OSIS '''
-                
+
         for k in buffer.keys():
-            
+
             # ------------------------Start unsafe ---------------------------
             object_ = buffer.pop(k, None)
-            
+
             # Check if we have an object
             # Object could  be saved in the mean time by other calls to commit_buffer
             # Triggered by timed calls or direct calls in the buffered drp interface
@@ -196,15 +199,9 @@ class DRPTask:
                     self.sendToDrp(name, 'save', object_)
                 except Exception, ex:
                     q.logger.log('[DRPTasklet] Failed to save buffered %s with guid %s' % (name, k))
-                    
+
                     # Re-add to buffer if it does not already contain a (newer?) version
                     # As versions are guids, we can't tell if a version is newer or older
                     if not k in buffer:
                         buffer[k] = object_
             # ------------------------Stop unsafe ---------------------------
-                    
-                
-                
-            
-            
-        

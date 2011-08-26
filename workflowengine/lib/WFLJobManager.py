@@ -343,7 +343,7 @@ class WFLJob:
         Commits the job to the DRP.
         """
         q.drp.job.save(self.drp_object)
-        self.drp_object = q.drp.job.get(self.drp_object.guid)
+        #self.drp_object = q.drp.job.get(self.drp_object.guid)
 
     """
     @classmethod
