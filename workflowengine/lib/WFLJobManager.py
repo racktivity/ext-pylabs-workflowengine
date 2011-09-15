@@ -57,7 +57,7 @@ class WFLJobManager:
     def __removeJobFromShm(self, jobguid):
         self.__shm_jobs.pop(jobguid, None)
 
-    def createJob(self, parentjobguid, actionName, executionparams, agentguid=None, params=""):
+    def createJob(self, parentjobguid, actionName, executionparams, agentguid=None, params=None):
         parentjob = parentjobguid and self.__getJob(parentjobguid)
         job = WFLJob(parentjob, actionName, executionparams, agentguid, params)
         # The ancestor (top of the jobtree) is used to perform refcount garbage collection on the stoppedJobs
@@ -193,7 +193,20 @@ class WFLJobManager:
 
     def isKilled(self, jobguid):
         return self.__killedJobs.get(jobguid) is True
+    
+    def list_running(self):
+        return (j for j in self.__runningJobs.itervalues() if j)
 
+    def list_root_jobs(self):
+        return (j for j in self.__runningJobs.itervalues() if j and j.isRootJob())
+
+    def list_rootjob_with_children(self, jobguid):
+        return self.__rootJobGuid_treejobs_mapping.get(jobguid, ())
+
+    def status(self):
+        return {'running': len(self.__runningJobs),
+                'stopped': len(self.__stoppedJobs),
+                'waiting':  len(self.__waitingJobs)}
 
 def inheritFromParent(childjob, parentjob):
     for field in ['name', 'description', 'userErrormsg', 'internalErrormsg', 'maxduration']:
@@ -210,7 +223,7 @@ def getUnixTimestamp():
 
 class WFLJob:
 
-    def __init__(self, parentjob=None, actionName=None, executionparams={}, agentguid=None, params=""):
+    def __init__(self, parentjob=None, actionName=None, executionparams={}, agentguid=None, params=None):
         """
         Creates a new job in the DRP and returns an instance of WFLJob. The WFLJob contains a disconnected job object and adds extra functionality.
 
@@ -225,6 +238,8 @@ class WFLJob:
         timetostart:       If wait==True: the time at which the job should start, if None the job will be scheduled as soon as possible. V1: not available.
         priority:          If wait==True: the priority of the job in the scheduler; the lower the number, the higher the priority: jobs with priority 1 will be scheduled first, then jobs with priority 2 and so on. V1: not available.
         """
+        self.encoder = BaseEnumEncoder()
+
         self.create_drp_object()
         self.ancestor = self
         self.runningJobsInTree = 0
@@ -252,7 +267,7 @@ class WFLJob:
 
         self.drp_object.actionName = actionName
         self.drp_object.agentguid = agentguid
-        self.drp_object.params = params
+        self.drp_object.params = self.encoder.encode(params) if params else None 
 
         # TODO Should the below parameters be stored in OSIS ? -> required for delayed jobs !
         self.wait = True if executionparams.get('wait') is None else executionparams.get('wait')
@@ -305,11 +320,15 @@ class WFLJob:
 
         self.drp_object.jobstatus = q.enumerators.jobstatus.DONE
         self.drp_object.endtime = datetime.now()
-        import ast
+        #import ast
         try:
-            params = ast.literal_eval(self.drp_object.params)
+            # @todo: Why do we need to serialize this? If required, switch to 
+            # other serialization format!
+            #params = ast.literal_eval(self.drp_object.params)
+            params = json.loads(self.drp_object.params)
             params['result'] = result
-            self.drp_object.params = str(params)
+            self.drp_object.params = self.encoder.encode(params)
+            #self.drp_object.params = str(params)
         except Exception, ex:
             self.log("Failed to parse params %s, Error: %s"%(self.drp_object.params, ex), 3, 'workflowengine')
         self.result = result
@@ -343,36 +362,13 @@ class WFLJob:
         Commits the job to the DRP.
         """
         q.drp.job.save(self.drp_object)
-        #self.drp_object = q.drp.job.get(self.drp_object.guid)
 
-    """
-    @classmethod
-    def findChildren(cls, parentjobguid):
-        filterObj = q.drp.job.getFilterObject()
-        filterObj.add('view_job_parentlist', 'parentjobguid', parentjobguid)
 
-        childrenguids = q.drp.job.find(filterObj)
-        childrenguids = set(childrenguids)
 
-        return map(lambda x: q.drp.job.get(x), childrenguids)
-
-    @classmethod
-    def printJobTree(cls, parentjobguid, indent=0):
-        job = q.drp.job.get(parentjobguid)
-        print " "*indent + job.guid + " " + str(job.actionName) + " " + str(job.jobstatus) + " " + str(job.log)
-        children = cls.findChildren(parentjobguid)
-        for child in children:
-            cls.printJobTree(child.guid, indent+1)
-
-    @classmethod
-    def getNextChildOrder(cls, parentjobguid):
-        filterObj = q.drp.job.getFilterObject()
-        filterObj.add('view_job_parentlist', 'parentjobguid', parentjobguid)
-
-        view = q.drp.job.findAsView(filterObj, 'view_job_parentlist')
-        highestOrder = -1
-        for jobobj in view:
-            if jobobj['joborder'] > highestOrder:
-                highestOrder = jobobj['joborder']
-        return highestOrder + 1
-    """
+import json
+from pymonkey.baseclasses.BaseEnumeration import BaseEnumerationMeta
+class BaseEnumEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if hasattr(obj, '__metaclass__') and issubclass(obj.__metaclass__, BaseEnumerationMeta):
+            return str(obj)
+        return json.JSONEncoder.default(self, obj)

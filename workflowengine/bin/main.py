@@ -16,6 +16,7 @@ from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
 from workflowengine.DebugInterface import DebugInterface
+#from workflowengine.rest import RestService
 
 import workflowengine.ConcurrenceSocket as ConcurrenceSocket
 ConcurrenceSocket.install()
@@ -56,6 +57,8 @@ def main():
             q.workflowengine.jobmanager.initializeDebugging()
 
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
+        drp_job_task = DRPTask(config['osis_address'], config['osis_service'])
+
         hostname = config['hostname'] if 'hostname' in config and config['hostname'] else config['xmppserver']
         ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], hostname, config['password'])
     except Exception, e:
@@ -79,6 +82,9 @@ def main():
 
         drp_task.start()
         drp_task.connectDRPClient(q.drp)
+
+        drp_job_task.start()
+        drp_job_task.connectDRPClient(q.drp, ('job',))
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
@@ -114,6 +120,10 @@ def main():
         
         tasklet = Tasklet.new(clean_jobs)()
         Tasklet.join(tasklet)
+        
+        #rest_task= RestService(q.workflowengine.jobmanager)
+        #rest_task.start()
+
         
         print "Ready !"
 

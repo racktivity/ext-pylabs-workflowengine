@@ -83,7 +83,7 @@ class WFLActionManager():
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
            raise Exception("Can't create child jobs: the job is killed !")
         
-        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams, params=str(params))
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actorname+"."+actionname, executionparams, params=params)
         #START A NEW TASKLET FOR THE JOB
 
         q.workflowengine.jobmanager.startJob(jobguid)
@@ -137,7 +137,7 @@ class WFLActionManager():
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
            raise Exception("Can't create child jobs: the job is killed !")
         
-        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams, params=str(params))
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, rootobjectname+"."+actionname, executionparams, params=params)
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
 

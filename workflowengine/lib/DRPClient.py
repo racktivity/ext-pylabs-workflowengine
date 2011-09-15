@@ -79,6 +79,12 @@ class BufferedDRPInterface():
         if not guid:
             object_.guid = str(uuid.uuid4())
 
+        #if str(object_.jobstatus) == 'DONE' or str(object_.jobstatus) == 'ERROR':
+        #    self.__drp.sendToDrp(self.__name, 'save', object_)
+        #    self.__buffer.pop(object_.guid, None)
+        #else:
+        #    self.__buffer[object_.guid] = object_
+            
         self.__buffer[object_.guid] = object_
 
     def new(self, *args, **kwargs):
@@ -130,7 +136,7 @@ class DRPTask:
         self.__buffers = {}
         self.__buffer_tasklet = None
 
-    def connectDRPClient(self, drpClient):
+    def connectDRPClient(self, drpClient, rootobjects=None):
         '''
         Connect the DRPClient to this tasklet. As a result, the DRPClient will send his DRP messages to the tasklet in this task.
         @raise Exception: if the DRPTask is not yet started.
@@ -142,6 +148,10 @@ class DRPTask:
         from osis import ROOTOBJECT_TYPES as types
         for type in types.itervalues():
             name = getattr(type, 'OSIS_TYPE_NAME', type.__name__.lower())
+
+            if rootobjects and name not in rootobjects:
+                continue
+
             if name in self.bufferedObjects:
                 buffer = {}
                 self.__buffers[name] = buffer
