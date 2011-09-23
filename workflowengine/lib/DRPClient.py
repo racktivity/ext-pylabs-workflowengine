@@ -112,9 +112,6 @@ class DRPTask:
     bufferedObjects = [ 'core.job' ]
 
     def __init__(self, address, service):
-        #init(q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps', getAppName(),
-        #    'impl', 'osis'))
-
         try:
             #self.connection = p.api.model.transport
             #OsisConnection(XMLRPCTransport(address, service), ThriftSerializer)
@@ -128,7 +125,7 @@ class DRPTask:
         self.__buffers = {}
         self.__buffer_tasklet = None
 
-    def connectDRPClient(self, drpClient):
+    def connectDRPClient(self, drpClient, rootobjects=None):
         '''
         Connect the DRPClient to this tasklet. As a result, the DRPClient will send his DRP messages to the tasklet in this task.
         @raise Exception: if the DRPTask is not yet started.
@@ -140,6 +137,8 @@ class DRPTask:
         from pymodel import ROOTOBJECT_TYPES as types
         for domain, domain_types in types.iteritems():
             for name, type_ in domain_types.iteritems():
+                if rootobjects and (domain, name) not in rootobjects:
+                    continue
                 #name = getattr(type_, 'OSIS_TYPE_NAME', type_.__name__.lower())
                 name_ = '%s.%s' % (domain, name)
                 self.connection[(domain, name)] = getattr(getattr(drpClient,
@@ -174,7 +173,6 @@ class DRPTask:
                 q.logger.log("[DRPTasklet] Received task: ro=" + str(rootobject) + " action=" + str(action), 5)
                 try:
                     #If you want to add transaction support, this is the place to be.
-                    #result = getattr(getattr(getattr(self.connection, domain), rootobject), action)(*args[4:], **kwargs)
 
                     args_ = args[4:]
                     kwargs_ = kwargs

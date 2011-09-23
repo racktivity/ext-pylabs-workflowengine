@@ -57,7 +57,7 @@ class WFLAgentController:
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
             raise Exception("Can't create child jobs: the job is killed !")
 
-        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actionname, executionparams, agentguid, params=str(params))
+        params['jobguid'] = jobguid = q.workflowengine.jobmanager.createJob(currentjobguid, actionname, executionparams, agentguid, params=params)
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
         tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, agentguid, scriptpath, params)

@@ -275,8 +275,7 @@ class XMPPStream:
                 def read(self, n):
                     if reader.buffer.remaining == 0:
                         #read more data into buffer
-                        reader._read_more()
-                        #reader.fill()
+                        reader.fill()
                     return reader.buffer.read_bytes(min(n, reader.buffer.remaining))
 
             self.parser = iter(iterparse(f(), events=("start", "end")))

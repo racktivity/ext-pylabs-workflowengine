@@ -87,6 +87,7 @@ def main():
             q.workflowengine.jobmanager.initializeDebugging()
 
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
+        drp_job_task = DRPTask(config['osis_address'], config['osis_service'])
         hostname = config['hostname'] if 'hostname' in config and config['hostname'] else config['xmppserver']
         ac_task = AgentControllerTask(config['agentcontrollerguid'], config['xmppserver'], hostname, config['password'])
     except Exception, e:
@@ -126,7 +127,10 @@ def main():
         if enable_debug:debug_socket_task.start()
 
         drp_task.start()
-        drp_task.connectDRPClient(p.api.model) #q.drp)
+        drp_task.connectDRPClient(p.api.model)
+
+        drp_job_task.start()
+        drp_job_task.connectDRPClient(p.api.model, (('core', 'job'),))
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
