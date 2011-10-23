@@ -1,4 +1,3 @@
-import urllib
 import urlparse
 import xmlrpclib
 
@@ -23,15 +22,17 @@ class ConcurrenceTransport(xmlrpclib.Transport):
     def request(self, host, handler, request_body, verbose=0):
 
         connection = self.make_connection(host)
+        chost, self._extra_headers, x509 = self.get_host_info(host)
 
         request =  connection.post(handler, request_body, host)
+        request.headers.extend(self._extra_headers)
         response = connection.perform(request)
 
         if response.status_code != 200:
-            raise ProtocolError(
+            raise xmlrpclib.ProtocolError(
                 host + handler,
-                errcode, errmsg,
-                headers
+                response.status, response.reason,
+                response.msg
                 )
 
         p, u = self.getparser()
