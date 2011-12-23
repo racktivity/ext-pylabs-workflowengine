@@ -25,7 +25,8 @@ class ConcurrenceTransport(xmlrpclib.Transport):
         chost, self._extra_headers, x509 = self.get_host_info(host)
 
         request =  connection.post(handler, request_body, host)
-        request.headers.extend(self._extra_headers)
+        if self._extra_headers:
+            request.headers.extend(self._extra_headers)
         response = connection.perform(request)
 
         if response.status_code != 200:
