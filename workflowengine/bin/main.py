@@ -6,24 +6,20 @@ from signal import signal, SIGTERM
 
 from pylabs.InitBaseCore import q, p
 
-#from pylabs.tasklets import TaskletsEngine
-#from pylabs.logging.logtargets.LogTargetScribe import LogTargetScribe
-
 q.application.appname = "workflowengine"
 
 from concurrence import Tasklet, dispatch
 
 from workflowengine.DRPClient import DRPTask
-from workflowengine.SocketServer import SocketTask
+from workflowengine.AMQPInterface import AMQPTask
+from workflowengine.QueueInfrastructure import QueueInfrastructure, getAmqpConfig
 from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
 from workflowengine.DebugInterface import DebugInterface
+from workflowengine.protocol import RpcMessage, encode_message
 
 from workflowengine import getAppName, getPort
-
-#import workflowengine.ConcurrenceSocket as ConcurrenceSocket
-#ConcurrenceSocket.install()
 
 initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
     'workflowengine.%s.initSuccess' % getAppName())
@@ -48,9 +44,7 @@ def getConfig():
     config['xmppserver'] = 'localhost'
     config['password'] = 'agentcontroller'
 
-    config['enable_debug'] = '--debug' in sys.argv
-
-    config['port'] = getPort()
+    config['enable_debug'] = '--debug' in sys.argv   
 
     return config
 
@@ -61,6 +55,8 @@ def main():
     try:
         #config = i.config.workflowengine.getConfig('main')
         config = getConfig()
+        
+        amqp_cfg = getAmqpConfig()
 
         enable_debug = config['enable_debug'] == 'True' if 'enable_debug' in config else False
 
@@ -69,17 +65,24 @@ def main():
         #q.logger.logTargetAdd(LogTargetScribe())
 
         #INITIALIZE THE TASKS
-        socket_task = SocketTask(int(config['port']))
-        def _handle_message(data, connection):
+        amqp_task = AMQPTask("%s.rpc.%s" % (getAppName(), amqp_cfg['amqp_key']),  \
+            "%s.rpc.return" % getAppName(), amqp_cfg['amqp_key'])
+        
+        def _handle_message(msg):
             try:
-                q.logger.log('Received message from CloudAPI with id %s - %s.%s.%s' % (data['id'], data['domainname'], data['rootobjectname'], data['actionname']), level=8)
-                ret = q.workflowengine.actionmanager.startRootobjectAction(data['domainname'], data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
-                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s.%s' % (data['id'], data['domainname'], data['rootobjectname'], data['actionname']), level=8)
-                connection.sendData({'id':data['id'], 'error':False, 'return':ret})
+                q.logger.log('Received message from CloudAPI with id %s - %s.%s.%s' % (msg.messageid, msg.domain, msg.category, msg.methodname), level=8)
+                ret = q.workflowengine.actionmanager.startRootobjectAction(msg.domain, msg.category, msg.methodname, msg.params, msg.params.get('executionparams', {}), msg.params.get('jobguid', None))
+                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s.%s' % (msg.domain, msg.messageid, msg.category, msg.methodname), level=8)
+                
+                msg.params['result'] = ret
             except Exception, e:
-                connection.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
-        socket_task.setMessageHandler(_handle_message)
-
+                # @todo: how define error in result?
+                msg.params['result'] = str(WFLException.create(e))
+                
+            amqp_task.sendData(encode_message(msg), routing_key=msg.returnqueue)
+                
+        amqp_task.setMessageHandler(_handle_message)
+        
         if enable_debug:
             debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
             debugInterface = DebugInterface(debug_socket_task)
@@ -103,10 +106,10 @@ def main():
             q.logger.log('Received SIGTERM: shutting down.')
 
             try:
-                socket_task.stop()
+                amqp_task.stop()
             except Exception, exc:
                 q.logger.log(
-                    'Error while shutting down socket task: %s' % exc, 1)
+                    'Error while shutting down amqp task: %s' % exc, 1)
             except:
                 q.logger.log('Error while shutting down socket task', 1)
 
@@ -123,7 +126,7 @@ def main():
         signal(SIGTERM, lambda signum, stack_frame: sigterm_received())
 
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
-        socket_task.start()
+        amqp_task.start()
         if enable_debug:debug_socket_task.start()
 
         drp_task.start()

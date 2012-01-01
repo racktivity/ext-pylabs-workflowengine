@@ -1,15 +1,21 @@
 import os.path
 
-import yaml, threading, time
-from twisted.internet import protocol, reactor
+from twisted.internet.defer import inlineCallbacks
+from twisted.internet import reactor, defer
+from twisted.internet.protocol import ClientCreator
+from twisted.internet.error import ConnectionRefusedError
+
+from txamqp.protocol import AMQClient
+from txamqp.client import TwistedDelegate, Closed 
+from txamqp.content import Content
+import txamqp.spec
+
 from workflowengine.Exceptions import ActionNotFoundException
+from workflowengine.QueueInfrastructure import AMQPAbstraction, QueueInfrastructure, getAmqpConfig
+from workflowengine.protocol import RpcMessage, encode_message, decode_message
 from workflowengine import getAppName
 
 from pylabs import q, p
-
-#ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
-#ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
-#RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
 
 ActorActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
         getAppName(), 'impl', 'actor')
@@ -20,21 +26,31 @@ class WFLActionManager():
     """
     This implementation of the ActionManager is available to the cloudAPI: only root object actions are available.
     """
-    def __init__(self):
-        self.factory = YamlClientFactory(self._receivedData)
+    def getID(self):
+        return "appserver1"
+    
+    def getRoutingKey(self, msg):
+        """Determine correct routing key for action"""
         
-        self.config = q.manage.workflowengine.getConfig(p.api.appname)
-
-        def _do_connect():
-            reactor.connectTCP('localhost', int(self.config['port']), self.factory)
+        #@todo: move to tasklet
+        routingkey = '%s.rpc.%s.%s.%s' % (self.config['appname'], "wfe1", msg.category, msg.methodname)
+        
+        return routingkey
+    
+    def __init__(self):
+        
+        self.appname = getAppName()
+        
+        # AMQP Broker config
+        self.config = getAmqpConfig()
             
-        reactor.callInThread(_do_connect)
-
-        self.running = {}
-
-        self.idlock = threading.Lock()
+        self.amqpClient = AMQPInterface(self.config['amqp_host'], self.config['amqp_port'], \
+            self.config['amqp_vhost'], self.config['amqp_login'], self.config['amqp_password'], self.getID())
+        self.amqpClient.setDataReceivedCallback(self._receivedData)
+        self.amqpClient.connect()
+        
         self.id = 0
-
+        self.deferreds = {}
 
         ###### For synchronous execution ##########
         try:
@@ -52,11 +68,18 @@ class WFLActionManager():
             self.__error = ex
         ###### /For synchronous execution ##########
 
-    def _receivedData(self, data):
-        self.running[data['id']]['return'] = data.get('return')
-        self.running[data['id']]['error'] = data.get('error')
-        self.running[data['id']]['exception'] = data.get('exception')
-        self.running[data['id']]['lock'].release()
+    def _receivedData(self, msg):
+        if msg.messageid not in self.deferreds:
+            q.logger.log("[CLOUDAPIActionManager] Got message for an unknown id !")
+        else:
+            try:
+                # @todo: check error or not!
+                q.logger.log("[CLOUDAPIActionManager] Got message for id %s ! Result: %s" % (msg.messageid, msg.params['result']))
+                d = self.deferreds.pop(msg.messageid) 
+                d.callback(msg.params['result'])
+            except Exception, ex:
+                q.logger.log('[CLOUDAPIActionManager]: ERROR: %s' % ex.message)
+                raise ex
 
     def startActorAction(self, domainname, actorname, actionname, params, executionparams={}, jobguid=None):
         '''
@@ -85,24 +108,30 @@ class WFLActionManager():
         if not 'wait' in executionparams:
             executionparams['wait'] = False
 
-        self.idlock.acquire()
+        # Don't need to lock here, all async actions are called from the reactor thread
         my_id = self.id
-        self.id += 1
-        self.idlock.release()
+        self.id = (self.id + 1) % 32768
 
-        my_lock = threading.Lock()
-        self.running[my_id] = {'lock': my_lock}
-        my_lock.acquire()
-        self.factory.sendData({'id':my_id, 'domainname': domainname, 'rootobjectname':rootobjectname, 'actionname':actionname, 'params':params, 'executionparams':executionparams, 'jobguid':jobguid})
-        my_lock.acquire()
-        # Wait for receivedData to release the lock
-        my_lock.release()
+        message = RpcMessage()
+        
+        message.domain = domainname
+        message.category = rootobjectname
+        message.methodname = actionname
+        message.params = params
+        message.params['executionparams'] = executionparams
+        message.params['jobguid'] = jobguid
+        
+        message.login = ''
+        message.passwd = ''
+        
+        message.messageid = my_id
 
-        data = self.running.pop(my_id)
-        if not data['error']:
-            return data['return']
-        else:
-            raise data['exception']
+        deferred = defer.Deferred()
+        self.deferreds[my_id] = deferred 
+        
+        self.amqpClient.sendMessage(message, self.getRoutingKey(message))
+        
+        return deferred
 
     def startRootobjectActionSynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):        
         if not self.__engineLoaded:
@@ -128,72 +157,99 @@ class ActionUnavailableException(Exception):
     def __init__(self):
         Exception.__init__(self, "This action is not available.")
 
+class AMQPInterface():
 
-class YamlProtocol(protocol.Protocol):
-    writelock = threading.Lock()
-    delimiter = "\n---\n"
-    buffer = ""
+    def __init__(self, host, port, vhost, username, password, id):
+        (self.host, self.port, self.vhost, self.username, self.password, self.id) = (host, port, vhost, username, password, id)
+        self.spec = txamqp.spec.load("/opt/qbase5/cfg/amqp/amqp0-8.xml") #TODO Path should be generated !
+        self.initialized = False
+        
+        self.config = getAmqpConfig()
+        
 
+    def setDataReceivedCallback(self, callback):
+        self.dataReceivedCallback = callback
 
-    def connectionMade(self):
-        self.factory.instance = self
-
-    def dataReceived(self, data):
-        if self.factory.receivedCallback:
-            self.buffer = self.buffer + data
-            while self.delimiter in self.buffer:
-                delimiter_index = self.buffer.find(self.delimiter)
-                message = self.buffer[:delimiter_index]
-                self.buffer = self.buffer[delimiter_index+len(self.delimiter):]
-                if message:
-                    try:
-                        retdata = yaml.load(message)
-                    except yaml.parser.ParserError:
-                        q.logger.log("[CLOUDAPIActionManager] Socket received invalid message: " + str(message), 3)
-                    else:
-                        self.factory.receivedCallback(retdata)
-
-    def connectionLost(self, reason):
-        self.factory.instance = None
-
-    def sendData(self, data):
-        message = yaml.dump(data)
-        message += "\n---\n"
-        self.writelock.acquire()
-        self.transport.write(message)
-        self.writelock.release()
-
-class YamlClientFactory(protocol.ReconnectingClientFactory):
-    protocol = YamlProtocol
-    instance = None
-
-    maxDelay = 30 # If the connection is lost, the factory will try to reconnect: the max delay between reconnects.
-
-    timeout = 5 # sendData waits a number of seconds before raising the not connected exception.
-    sleepBetweenChecks = 0.5 # sendData will try to sleep a number of seconds between each check.
-    maxAttempts = timeout/sleepBetweenChecks
-
-    def __init__(self, receivedCallback):
-        self.receivedCallback = receivedCallback
-
-    def sendData(self, data):
-        # If a request for sendData is received: reset the reconnect timeout and retry
-        if self.connector and self.connector.state == 'disconnected':
-            self.stopTrying()
-            self.resetDelay()
-            self.retry()
-
-        # Let the sendData sleep if there is no connection.
-        attempt = 0
-        while not self.instance:
-            if attempt == self.maxAttempts:
-                break
-            else:
-                time.sleep(self.sleepBetweenChecks)
-                attempt += 1
-
-        # Either the connection is made or the timeout is reached.
-        if self.instance == None:
-            raise Exception('Not connected to the stackless WFL.')
+    @inlineCallbacks
+    def connect(self):
+        try:
+            self.connection = yield ClientCreator(reactor, AMQClient, delegate=TwistedDelegate(), vhost=self.vhost, spec=self.spec).connectTCP(self.host, self.port)
+            yield self.connection.authenticate(self.username, self.password)
+        except ConnectionRefusedError:
+            q.logger.log("[CLOUDAPIActionManager] Problem while connecting with RabbitMQ... Trying again in 10 seconds.")
+            reactor.callLater(10, self.connect)
+        except Closed:
+            q.logger.log("[CLOUDAPIActionManager] Problem while connecting with RabbitMQ... Trying again in 10 seconds.")
+            reactor.callLater(10, self.connect)
         else:
-            self.instance.sendData(data)
+            q.logger.log("[CLOUDAPIActionManager] txAMQP authenticated.")
+            self.channel = yield self.connection.channel(1)
+            yield self.channel.channel_open()
+            
+            # The make_serial function was created in order to make a generic QueueInfrastructure.
+            deferreds = []
+            def make_serial(function):
+                # Input: function that returns deferredfrom amqplib.client_0_8 import transport
+                # Output: function that doesn't call input function directly but serializes it:
+                #         the first function that is executed will launch if deferreds[0].callback is called,
+                #         the second function will launch if the first function is done, and so on
+                # Note: the user has to append a final callback to deferreds, this will be called if the last function is done executing
+                def new_func(*args, **kwargs):
+                    index = len(deferreds)
+                    deferreds.append(defer.Deferred())
+                    def to_be_called(dummy):
+                        function(*args, **kwargs).addCallback(lambda x: deferreds[index+1].callback(None))
+                    deferreds[index].addCallback(to_be_called)
+                return new_func
+            
+            amqpAbstraction = AMQPAbstraction(make_serial(self.channel.queue_declare), make_serial(self.channel.exchange_declare), make_serial(self.channel.queue_bind))
+            queueInfrastructure = QueueInfrastructure(amqpAbstraction)
+            queueInfrastructure.createBasicInfrastructure()
+            queueInfrastructure.createAppserverReturnQueue(self.id)
+            
+            self.returnQueueName = queueInfrastructure.getAppserverReturnQueueName(self.id)
+            
+            
+            deferreds.append(defer.Deferred())
+            deferreds[-1].addCallback(self.__initialized)
+            # All deferreds are created and will be serialized: set everything in motion !
+            deferreds[0].callback(None)
+    
+    @inlineCallbacks
+    def __initialized(self, ret):
+        yield self.channel.basic_consume(queue=self.returnQueueName, no_ack=True, consumer_tag=self.id)
+        self.queue = yield self.connection.queue(self.id)
+        self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
+        q.logger.log("[CLOUDAPIActionManager] txAMQP initialized. Ready to receive messages.")
+        
+    def __gotMessage(self, msg):
+        try:
+            q.logger.log("[CLOUDAPIActionManager] gotMessage: %s" % msg)
+            message = decode_message(msg.content.body)
+            self.dataReceivedCallback(message)
+            
+        except Exception, ex:
+            
+            q.logger.log("[CLOUDAPIActionManager] txAMQP received invalid message: %s\nMsg: %s" % (ex, str(msg)), 3)
+            q.logger.log("[CLOUDAPIActionManager] Exception:: " + ex.message, 3)
+            
+        finally:
+            self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
+
+    def __lostConnection(self, exception):
+        q.logger.log("[CLOUDAPIActionManager] Connection with RabbitMQ was lost... Trying again in 10 seconds.")
+        self.connection = None
+        reactor.callLater(10, self.connect)
+
+    def sendMessage(self, msg, routingkey):
+        if not hasattr(self, "connection") or self.connection is None:
+            raise Exception("txAMQP has no connection...")
+
+        # @todo: define correct return queue!
+        msg.returnqueue = self.returnQueueName
+        message = Content(encode_message(msg))
+        
+        q.logger.log("[CLOUDAPIActionManager] txAMQP is sending the message " + str(message))
+        ret = self.channel.basic_publish(exchange="%s.rpc" % self.config['appname'], routing_key=routingkey, content=message)
+        
+        
