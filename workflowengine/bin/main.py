@@ -15,6 +15,8 @@ from concurrence import Tasklet, dispatch
 
 from workflowengine.DRPClient import DRPTask
 from workflowengine.SocketServer import SocketTask
+from workflowengine.AMQPInterface import AMQPTask
+from workflowengine.QueueInfrastructure import QueueInfrastructure
 from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
@@ -22,8 +24,8 @@ from workflowengine.DebugInterface import DebugInterface
 
 from workflowengine import getAppName, getPort
 
-#import workflowengine.ConcurrenceSocket as ConcurrenceSocket
-#ConcurrenceSocket.install()
+import workflowengine.ConcurrenceSocket as ConcurrenceSocket
+ConcurrenceSocket.install()
 
 initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
     'workflowengine.%s.initSuccess' % getAppName())
@@ -69,16 +71,25 @@ def main():
         #q.logger.logTargetAdd(LogTargetScribe())
 
         #INITIALIZE THE TASKS
-        socket_task = SocketTask(int(config['port']))
-        def _handle_message(data, connection):
+        amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/", \
+            QueueInfrastructure.WFE_RPC_QUEUE, QueueInfrastructure.WFE_RPC_RETURN_EXCHANGE, "wfe_tag")
+
+        def _handle_message(msg):
             try:
-                q.logger.log('Received message from CloudAPI with id %s - %s.%s.%s' % (data['id'], data['domainname'], data['rootobjectname'], data['actionname']), level=8)
-                ret = q.workflowengine.actionmanager.startRootobjectAction(data['domainname'], data['rootobjectname'], data['actionname'], data['params'], data['executionparams'], data['jobguid'])
-                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s.%s' % (data['id'], data['domainname'], data['rootobjectname'], data['actionname']), level=8)
-                connection.sendData({'id':data['id'], 'error':False, 'return':ret})
+                q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (msg.messageid, msg.category, msg.methodname), level=8)
+                ret = q.workflowengine.actionmanager.startRootobjectAction(msg.category, msg.methodname, msg.params, msg.params.get('executionparams', {}), msg.params.get('jobguid', None))
+                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (msg.messageid, msg.category, msg.methodname), level=8)
+
+                msg.params['result'] = ret
+
+                amqp_task.sendData(msg.getMessageString(),
+                        routing_key=msg.returnqueue)
             except Exception, e:
-                connection.sendData({'id':data['id'], 'error':True, 'exception':WFLException.create(e)})
-        socket_task.setMessageHandler(_handle_message)
+                msg.paramsp['rpc_exception'] = str(WFLException.create(e))
+                amqp_task.sendData(msg.getMessageString(),
+                        routing_key=msg.returnqueue)
+
+        amqp_task.setMessageHandler(_handle_message)
 
         if enable_debug:
             debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
@@ -103,7 +114,7 @@ def main():
             q.logger.log('Received SIGTERM: shutting down.')
 
             try:
-                socket_task.stop()
+                amqp_task.stop()
             except Exception, exc:
                 q.logger.log(
                     'Error while shutting down socket task: %s' % exc, 1)
@@ -123,7 +134,7 @@ def main():
         signal(SIGTERM, lambda signum, stack_frame: sigterm_received())
 
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
-        socket_task.start()
+        amqp_task.start()
         if enable_debug:debug_socket_task.start()
 
         drp_task.start()
@@ -134,26 +145,26 @@ def main():
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
-        
+
         def clean_jobs():
             # Clean out job db if required
             # Put all running jobs in error with log msg
             from pylabs.messages.LogObject import LogObject
             from pylabs.messages import toolStripNonAsciFromText
-            
+
             f = p.api.model.core.job.getFilterObject()
             f.add('core_view_job_list', 'jobstatus', 'RUNNING')
             running_jobs = p.api.model.core.job.find(f)
-            
+
             q.logger.log('%s jobs to reset' % len(running_jobs), 1)
-            
+
             if len(running_jobs) > 0:
-                
+
                 msg = toolStripNonAsciFromText('\n\nJob status reset to ERROR during workflowengine initialization')
                 l = LogObject()
                 l.init(msg, 1)
                 logentry = q.logger._encodeLog(l.getMessageString(), level=1)
-                
+
                 for jobguid in running_jobs:
                     try:
                         job = p.api.model.core.job.get(jobguid)
@@ -161,12 +172,12 @@ def main():
                         job.log = ( job.log or "") + logentry
                         q.logger.log('Setting running job %s to ERROR' % job.guid, 1)
                         p.api.model.core.job.save(job)
-                    except Exception, e:
+                    except Exception, ex:
                         q.logger.log('Failed to reset job %s: %s' % (jobguid, ex.message), 1)
-        
+
         tasklet = Tasklet.new(clean_jobs)()
         Tasklet.join(tasklet)
-        
+
         print "Ready !"
 
 if __name__=='__main__':
