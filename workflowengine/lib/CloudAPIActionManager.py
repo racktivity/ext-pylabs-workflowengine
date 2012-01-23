@@ -1,4 +1,4 @@
-import yaml
+import os.path
 
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet import reactor, defer
@@ -6,58 +6,66 @@ from twisted.internet.protocol import ClientCreator
 from twisted.internet.error import ConnectionRefusedError
 
 from txamqp.protocol import AMQClient
-from txamqp.client import TwistedDelegate, Closed
+from txamqp.client import TwistedDelegate, Closed 
 from txamqp.content import Content
 import txamqp.spec
 
 from workflowengine.Exceptions import ActionNotFoundException
-from workflowengine.QueueInfrastructure import AMQPAbstraction, QueueInfrastructure
-
+from workflowengine.QueueInfrastructure import AMQPAbstraction, QueueInfrastructure, getAmqpConfig
+from workflowengine.protocol import RpcMessage, encode_message, decode_message
 from workflowengine import getAppName
 
-from pylabs import q
+from pylabs import q, p
 
-ActionManagerTaskletPath = q.system.fs.joinPaths(q.dirs.appDir,'workflowengine','tasklets')
-ActorActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'actor')
-RootobjectActionTaskletPath = q.system.fs.joinPaths(ActionManagerTaskletPath, 'rootobject')
-
-appserver_return_guid = "abc" # TODO Should be a generated GUID
-APPSERVER_CONSUMER_TAG = "app_tag"
+ActorActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
+        getAppName(), 'impl', 'actor')
+RootobjectActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
+        getAppName(), 'impl', 'action')
 
 class WFLActionManager():
     """
     This implementation of the ActionManager is available to the cloudAPI: only root object actions are available.
     """
-    def __init__(self):
-        #TODO Load the config file here
-        host = "localhost"
-        port = 5672
-        vhost = "/"
-        username = "guest"
-        password = "guest"
+    def getID(self):
+        return "appserver1"
+    
+    def getRoutingKey(self, msg):
+        """Determine correct routing key for action"""
         
-        self.amqpClient = AMQPInterface(host, port, vhost, username, password)
+        #@todo: move to tasklet
+        routingkey = '%s.rpc.%s.%s.%s' % (self.config['appname'], "wfe1", msg.category, msg.methodname)
+        
+        return routingkey
+    
+    def __init__(self):
+        
+        self.appname = getAppName()
+        
+        # AMQP Broker config
+        self.config = getAmqpConfig()
+            
+        self.amqpClient = AMQPInterface(self.config['amqp_host'], self.config['amqp_port'], \
+            self.config['amqp_vhost'], self.config['amqp_login'], self.config['amqp_password'], self.getID())
         self.amqpClient.setDataReceivedCallback(self._receivedData)
         self.amqpClient.connect()
         
         self.id = 0
         self.deferreds = {}
-        
+
         ###### For synchronous execution ##########
-        from pymonkey.tasklets import TaskletsEngine
-    	try:
-    	    self.__taskletEngine = TaskletsEngine()
-    	    ##create tasklets dir if it doesnt exist
-    	    if not q.system.fs.exists(ActorActionTaskletPath):
-    		q.system.fs.createDir(ActorActionTaskletPath)
-    	    self.__taskletEngine.addFromPath(ActorActionTaskletPath)
-    	    if not q.system.fs.exists(RootobjectActionTaskletPath):
-    		q.system.fs.createDir(RootobjectActionTaskletPath)
-    	    self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
-    	    self.__engineLoaded = True
-    	except Exception, ex:
-    	    self.__engineLoaded = False
-    	    self.__error = ex
+        try:
+            ##create tasklets dir if it doesnt exist
+            if not q.system.fs.exists(ActorActionTaskletPath):
+                q.system.fs.createDir(ActorActionTaskletPath)
+            if not q.system.fs.exists(RootobjectActionTaskletPath):
+                q.system.fs.createDir(RootobjectActionTaskletPath)
+
+            self.__taskletEngine = q.taskletengine.get(ActorActionTaskletPath)
+            self.__taskletEngine.addFromPath(RootobjectActionTaskletPath)
+            self.__engineLoaded = True
+        except Exception, ex:
+            self.__engineLoaded = False
+            self.__error = ex
         ###### /For synchronous execution ##########
 
     def _receivedData(self, msg):
@@ -65,33 +73,31 @@ class WFLActionManager():
             q.logger.log("[CLOUDAPIActionManager] Got message for an unknown id !")
         else:
             try:
-                # @tod: check error or not!
-                q.logger.log("[CLOUDAPIActionManager] Got message for id  !" )
-                self.deferreds[msg.messageid].callback(msg.params['result'])
+                # @todo: check error or not!
+                q.logger.log("[CLOUDAPIActionManager] Got message for id %s ! Result: %s" % (msg.messageid, msg.params['result']))
+                d = self.deferreds.pop(msg.messageid) 
+                d.callback(msg.params['result'])
             except Exception, ex:
-                q.logger.log('MISERIE: %s' % ex.message)
+                q.logger.log('[CLOUDAPIActionManager]: ERROR: %s' % ex.message)
                 raise ex
-            #if 'return' in msg:
-            #    self.deferreds[msg.messageid].callback(msg.result)
-            #elif 'exception' in data:
-            #    self.deferreds[msg.messageid].errback(msg.result)
 
-    def startActorAction(self, actorname, actionname, params, executionparams={}, jobguid=None):
+    def startActorAction(self, domainname, actorname, actionname, params, executionparams={}, jobguid=None):
         '''
         This action is unavailable.
         @raise ActionUnavailableException: always thrown
         '''
         raise ActionUnavailableException()
 
-    def startRootobjectAction(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectAction(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+
         # For backwards compatibility
         # If called not explicitely, wait for result
         if not 'wait' in executionparams:
             executionparams['wait'] = True
 
-        return self.startRootobjectActionAsynchronous(rootobjectname, actionname, params, executionparams, jobguid)
+        return self.startRootobjectActionAsynchronous(domainname, rootobjectname, actionname, params, executionparams, jobguid)
 
-    def startRootobjectActionAsynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectActionAsynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):
         """
         Send the root object action to the stackless workflowengine over a socket.
         The root object action will wait until the workflowengine returns a result.
@@ -103,13 +109,12 @@ class WFLActionManager():
             executionparams['wait'] = False
 
         # Don't need to lock here, all async actions are called from the reactor thread
-        my_id = str(self.id)
-        self.id += 1
+        my_id = self.id
+        self.id = (self.id + 1) % 32768
 
-
-        message = q.messagehandler.getRPCMessageObject()
+        message = RpcMessage()
         
-        message.domain = 'cloudapi'
+        message.domain = domainname
         message.category = rootobjectname
         message.methodname = actionname
         message.params = params
@@ -119,39 +124,34 @@ class WFLActionManager():
         message.login = ''
         message.passwd = ''
         
-        # @todo: switch to guids
         message.messageid = my_id
-        
-        
 
         deferred = defer.Deferred()
         self.deferreds[my_id] = deferred 
-        #self.amqpClient.sendMessage({'id':my_id, 'rootobjectname':rootobjectname, 'actionname':actionname, 'params':params, 'executionparams':executionparams, 'jobguid':jobguid})
         
-        self.amqpClient.sendMessage(message)
+        self.amqpClient.sendMessage(message, self.getRoutingKey(message))
         
         return deferred
 
-    def startRootobjectActionSynchronous(self, rootobjectname, actionname, params, executionparams={}, jobguid=None):
+    def startRootobjectActionSynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):        
+        if not self.__engineLoaded:
+            raise Exception(self.__error)
 
-        return self.startRootobjectAction(rootobjectname, actionname, params, executionparams, jobguid)
-    
-        """
-        q.logger.log('>>> Executing startRootobjectActionSynchronous : %s %s %s' % (rootobjectname, actionname, params), 1)
-    	if not self.__engineLoaded:
-    	    raise Exception(self.__error)
-    
-        if len(self.__taskletEngine.find(tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)) == 0:
-            raise ActionNotFoundException("RootobjectAction", rootobjectname, actionname)
+        path = os.path.join(RootobjectActionTaskletPath, domainname)
+        tags = (domainname, rootobjectname, actionname)
 
-        self.__taskletEngine.execute(params, tags=(rootobjectname, actionname), path=RootobjectActionTaskletPath)
+        q.logger.log("Finding tasklets for path %s and tags %s" % (path, tags), 7)
+
+        tasklets = self.__taskletEngine.find(tags=tags, path=path)
+        if not tasklets:
+            raise ActionNotFoundException("RootobjectAction", domainname, rootobjectname, actionname)
+
+        self.__taskletEngine.execute(params, tags=tags, path=path)
 
         result = {'jobguid': None, 'result': params.get('result', None)}
 
-        q.logger.log('>>> startRootobjectActionSynchronous returns : %s ' % result, 1)
-
         return result
-        """
+
 
 class ActionUnavailableException(Exception):
     def __init__(self):
@@ -159,10 +159,13 @@ class ActionUnavailableException(Exception):
 
 class AMQPInterface():
 
-    def __init__(self, host, port, vhost, username, password):
-        (self.host, self.port, self.vhost, self.username, self.password) = (host, port, vhost, username, password)
-        self.spec = txamqp.spec.load("/opt/qbase3/lib/python2.6/site-packages/txamqp/amqp0-8.xml") #TODO Path should be generated !
+    def __init__(self, host, port, vhost, username, password, id):
+        (self.host, self.port, self.vhost, self.username, self.password, self.id) = (host, port, vhost, username, password, id)
+        self.spec = txamqp.spec.load("/opt/qbase5/cfg/amqp/amqp0-8.xml") #TODO Path should be generated !
         self.initialized = False
+        
+        self.config = getAmqpConfig()
+        
 
     def setDataReceivedCallback(self, callback):
         self.dataReceivedCallback = callback
@@ -186,7 +189,7 @@ class AMQPInterface():
             # The make_serial function was created in order to make a generic QueueInfrastructure.
             deferreds = []
             def make_serial(function):
-                # Input: function that returns deferred
+                # Input: function that returns deferredfrom amqplib.client_0_8 import transport
                 # Output: function that doesn't call input function directly but serializes it:
                 #         the first function that is executed will launch if deferreds[0].callback is called,
                 #         the second function will launch if the first function is done, and so on
@@ -202,8 +205,10 @@ class AMQPInterface():
             amqpAbstraction = AMQPAbstraction(make_serial(self.channel.queue_declare), make_serial(self.channel.exchange_declare), make_serial(self.channel.queue_bind))
             queueInfrastructure = QueueInfrastructure(amqpAbstraction)
             queueInfrastructure.createBasicInfrastructure()
-            queueInfrastructure.createAppserverReturnQueue(appserver_return_guid)
-            self.returnQueueName = queueInfrastructure.getAppserverReturnQueueName(appserver_return_guid)
+            queueInfrastructure.createAppserverReturnQueue(self.id)
+            
+            self.returnQueueName = queueInfrastructure.getAppserverReturnQueueName(self.id)
+            
             
             deferreds.append(defer.Deferred())
             deferreds[-1].addCallback(self.__initialized)
@@ -212,15 +217,15 @@ class AMQPInterface():
     
     @inlineCallbacks
     def __initialized(self, ret):
-        yield self.channel.basic_consume(queue=self.returnQueueName, no_ack=True, consumer_tag=APPSERVER_CONSUMER_TAG)
-        self.queue = yield self.connection.queue(APPSERVER_CONSUMER_TAG)
+        yield self.channel.basic_consume(queue=self.returnQueueName, no_ack=True, consumer_tag=self.id)
+        self.queue = yield self.connection.queue(self.id)
         self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
         q.logger.log("[CLOUDAPIActionManager] txAMQP initialized. Ready to receive messages.")
         
     def __gotMessage(self, msg):
         try:
-            #retdata = yaml.load(msg.content.body) # TODO Implement your favorite messaging format here
-            message = q.messagehandler.getRPCMessageObject(msg.content.body)
+            q.logger.log("[CLOUDAPIActionManager] gotMessage: %s" % msg)
+            message = decode_message(msg.content.body)
             self.dataReceivedCallback(message)
             
         except Exception, ex:
@@ -236,20 +241,15 @@ class AMQPInterface():
         self.connection = None
         reactor.callLater(10, self.connect)
 
-    def sendMessage(self, msg):
+    def sendMessage(self, msg, routingkey):
         if not hasattr(self, "connection") or self.connection is None:
             raise Exception("txAMQP has no connection...")
 
-        #data['return_guid'] = appserver_return_guid 
-        #message = Content(yaml.dump(data)) # TODO Implement your favorite messaging format here
-        
         # @todo: define correct return queue!
-        msg.returnqueue = appserver_return_guid
-        message = Content(msg.getMessageString())
-        
-        routingkey = '%s.%s.%s' % (QueueInfrastructure.WFE_RPC_EXCHANGE, msg.category, msg.methodname)
+        msg.returnqueue = self.returnQueueName
+        message = Content(encode_message(msg))
         
         q.logger.log("[CLOUDAPIActionManager] txAMQP is sending the message " + str(message))
-        ret = self.channel.basic_publish(exchange=QueueInfrastructure.WFE_RPC_EXCHANGE, routing_key=routingkey, content=message)
+        ret = self.channel.basic_publish(exchange="%s.rpc" % self.config['appname'], routing_key=routingkey, content=message)
         
         

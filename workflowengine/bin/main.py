@@ -6,26 +6,20 @@ from signal import signal, SIGTERM
 
 from pylabs.InitBaseCore import q, p
 
-#from pylabs.tasklets import TaskletsEngine
-#from pylabs.logging.logtargets.LogTargetScribe import LogTargetScribe
-
 q.application.appname = "workflowengine"
 
 from concurrence import Tasklet, dispatch
 
 from workflowengine.DRPClient import DRPTask
-from workflowengine.SocketServer import SocketTask
 from workflowengine.AMQPInterface import AMQPTask
-from workflowengine.QueueInfrastructure import QueueInfrastructure
+from workflowengine.QueueInfrastructure import QueueInfrastructure, getAmqpConfig
 from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
 from workflowengine.DebugInterface import DebugInterface
+from workflowengine.protocol import RpcMessage, encode_message
 
 from workflowengine import getAppName, getPort
-
-import workflowengine.ConcurrenceSocket as ConcurrenceSocket
-ConcurrenceSocket.install()
 
 initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
     'workflowengine.%s.initSuccess' % getAppName())
@@ -50,9 +44,7 @@ def getConfig():
     config['xmppserver'] = 'localhost'
     config['password'] = 'agentcontroller'
 
-    config['enable_debug'] = '--debug' in sys.argv
-
-    config['port'] = getPort()
+    config['enable_debug'] = '--debug' in sys.argv   
 
     return config
 
@@ -63,6 +55,8 @@ def main():
     try:
         #config = i.config.workflowengine.getConfig('main')
         config = getConfig()
+        
+        amqp_cfg = getAmqpConfig()
 
         enable_debug = config['enable_debug'] == 'True' if 'enable_debug' in config else False
 
@@ -71,26 +65,24 @@ def main():
         #q.logger.logTargetAdd(LogTargetScribe())
 
         #INITIALIZE THE TASKS
-        amqp_task = AMQPTask("localhost", 5672, "guest", "guest", "/", \
-            QueueInfrastructure.WFE_RPC_QUEUE, QueueInfrastructure.WFE_RPC_RETURN_EXCHANGE, "wfe_tag")
-
+        amqp_task = AMQPTask("%s.rpc.%s" % (getAppName(), amqp_cfg['amqp_key']),  \
+            "%s.rpc.return" % getAppName(), amqp_cfg['amqp_key'])
+        
         def _handle_message(msg):
             try:
-                q.logger.log('Received message from CloudAPI with id %s - %s.%s' % (msg.messageid, msg.category, msg.methodname), level=8)
-                ret = q.workflowengine.actionmanager.startRootobjectAction(msg.category, msg.methodname, msg.params, msg.params.get('executionparams', {}), msg.params.get('jobguid', None))
-                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s' % (msg.messageid, msg.category, msg.methodname), level=8)
-
+                q.logger.log('Received message from CloudAPI with id %s - %s.%s.%s' % (msg.messageid, msg.domain, msg.category, msg.methodname), level=8)
+                ret = q.workflowengine.actionmanager.startRootobjectAction(msg.domain, msg.category, msg.methodname, msg.params, msg.params.get('executionparams', {}), msg.params.get('jobguid', None))
+                q.logger.log('Sending result message to CloudAPI for id %s - %s.%s.%s' % (msg.domain, msg.messageid, msg.category, msg.methodname), level=8)
+                
                 msg.params['result'] = ret
-
-                amqp_task.sendData(msg.getMessageString(),
-                        routing_key=msg.returnqueue)
             except Exception, e:
-                msg.paramsp['rpc_exception'] = str(WFLException.create(e))
-                amqp_task.sendData(msg.getMessageString(),
-                        routing_key=msg.returnqueue)
-
+                # @todo: how define error in result?
+                msg.params['result'] = str(WFLException.create(e))
+                
+            amqp_task.sendData(encode_message(msg), routing_key=msg.returnqueue)
+                
         amqp_task.setMessageHandler(_handle_message)
-
+        
         if enable_debug:
             debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
             debugInterface = DebugInterface(debug_socket_task)
@@ -117,7 +109,7 @@ def main():
                 amqp_task.stop()
             except Exception, exc:
                 q.logger.log(
-                    'Error while shutting down socket task: %s' % exc, 1)
+                    'Error while shutting down amqp task: %s' % exc, 1)
             except:
                 q.logger.log('Error while shutting down socket task', 1)
 
@@ -145,26 +137,26 @@ def main():
 
         ac_task.start()
         ac_task.connectWFLAgentController(q.workflowengine.agentcontroller)
-
+        
         def clean_jobs():
             # Clean out job db if required
             # Put all running jobs in error with log msg
             from pylabs.messages.LogObject import LogObject
             from pylabs.messages import toolStripNonAsciFromText
-
+            
             f = p.api.model.core.job.getFilterObject()
             f.add('core_view_job_list', 'jobstatus', 'RUNNING')
             running_jobs = p.api.model.core.job.find(f)
-
+            
             q.logger.log('%s jobs to reset' % len(running_jobs), 1)
-
+            
             if len(running_jobs) > 0:
-
+                
                 msg = toolStripNonAsciFromText('\n\nJob status reset to ERROR during workflowengine initialization')
                 l = LogObject()
                 l.init(msg, 1)
                 logentry = q.logger._encodeLog(l.getMessageString(), level=1)
-
+                
                 for jobguid in running_jobs:
                     try:
                         job = p.api.model.core.job.get(jobguid)
@@ -172,12 +164,12 @@ def main():
                         job.log = ( job.log or "") + logentry
                         q.logger.log('Setting running job %s to ERROR' % job.guid, 1)
                         p.api.model.core.job.save(job)
-                    except Exception, ex:
+                    except Exception, e:
                         q.logger.log('Failed to reset job %s: %s' % (jobguid, ex.message), 1)
-
+        
         tasklet = Tasklet.new(clean_jobs)()
         Tasklet.join(tasklet)
-
+        
         print "Ready !"
 
 if __name__=='__main__':
