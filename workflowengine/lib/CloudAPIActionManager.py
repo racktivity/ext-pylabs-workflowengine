@@ -165,6 +165,7 @@ class AMQPInterface():
         self.initialized = False
         
         self.config = getAmqpConfig()
+        self.delayedmessages = list()
         
 
     def setDataReceivedCallback(self, callback):
@@ -221,6 +222,9 @@ class AMQPInterface():
         self.queue = yield self.connection.queue(self.id)
         self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
         q.logger.log("[CLOUDAPIActionManager] txAMQP initialized. Ready to receive messages.")
+        for msg, key in self.delayedmessages[:]:
+            self.sendMessage(msg, key)
+            self.delayedmessages.remove(msg, key)
         
     def __gotMessage(self, msg):
         try:
@@ -243,7 +247,12 @@ class AMQPInterface():
 
     def sendMessage(self, msg, routingkey):
         if not hasattr(self, "connection") or self.connection is None:
-            raise Exception("txAMQP has no connection...")
+            self.delayedmessages.append((msg, routingkey))
+        else:
+            self._sendMessage(msg, routingkey)
+
+
+    def _sendMessage(self, msg, routingkey):
 
         # @todo: define correct return queue!
         msg.returnqueue = self.returnQueueName
