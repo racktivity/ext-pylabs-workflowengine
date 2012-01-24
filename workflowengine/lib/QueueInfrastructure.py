@@ -1,17 +1,19 @@
 from workflowengine import getAppName
+from pylabs import p
 
 def getAmqpConfig():
         
         config = {}
         
         # AMQP Broker config
-        config['amqp_host'] = 'localhost'
+        appname = getAppName()
+        config['amqp_host'] = p.application.getRabbitMqHost(appname)
         config['amqp_port'] = 5672
         config['amqp_login'] = 'guest'
         config['amqp_password'] = 'guest'
         config['amqp_vhost'] = '/'
         config['amqp_key'] = 'wfe1'
-        config['appname'] = getAppName()
+        config['appname'] = appname
         
         return config
 

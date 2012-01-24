@@ -13,14 +13,10 @@ Extra Dependencies
 Known issues
 ------------
 * 1st request fails ("<Fault 8002: 'txAMQP has no connection...'>")
-* Stopping the WFE fails (not sure if this is related to these changes as kill works fine)
 * Not sure if the result format is correct when a job fails
 
 TODO
 ----
-* Add extra decorator to apsserver service methods which are executed async:
-  *q.manage.applicationserver.not_threaded*
-  This will prevent the appserver to spawn a new thread for those requests
   
 * Fix known issues
  
@@ -31,9 +27,6 @@ TODO
     - *getRoutingKey*: should be configurable as a tasklet as this will contain
       the logic to determine the correct routing key (i.e. determine the target WFE)
 
-  * CloudAPIActionManager.AMQPInterface:
-    - *__init__*: remove hard-coded path to AMQP spec file
-      
   * QueueInfrastructure.getAmqpConfig:
     Retrieve AMQP broker info from a cfg file
     

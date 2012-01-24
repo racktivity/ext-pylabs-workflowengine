@@ -161,7 +161,7 @@ class AMQPInterface():
 
     def __init__(self, host, port, vhost, username, password, id):
         (self.host, self.port, self.vhost, self.username, self.password, self.id) = (host, port, vhost, username, password, id)
-        self.spec = txamqp.spec.load("/opt/qbase5/cfg/amqp/amqp0-8.xml") #TODO Path should be generated !
+        self.spec = txamqp.spec.load(q.system.fs.joinPaths(q.dirs.cfgDir, 'amqp', 'amqp0-8.xml'))
         self.initialized = False
         
         self.config = getAmqpConfig()
