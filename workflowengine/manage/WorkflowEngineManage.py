@@ -1,7 +1,5 @@
 from pylabs import q
 import signal, time
-import yaml
-import socket
 
 class WorkflowEngineManage:
     #stacklessBin = q.system.fs.joinPaths(q.dirs.baseDir, 'bin', 'python')
@@ -86,7 +84,7 @@ class WorkflowEngineManage:
             q.system.process.kill(int(self._getPid(appname)), sig=signal.SIGTERM)
 
             i = 10
-            while self.ping(appname) or q.system.process.isPidAlive(int(self._getPid(appname))):
+            while q.system.process.isPidAlive(int(self._getPid(appname))):
                 if i > 0:
                     print "   Still running, waiting %i seconds..." % i
                     i -= 1
@@ -136,36 +134,11 @@ class WorkflowEngineManage:
         Retrieve the pid from given file
         """
         pid = self._getPid(appname)
-        if pid \
-            and q.system.process.isPidAlive(int(pid)) \
-            and self.ping(appname):
+        if pid and q.system.process.isPidAlive(int(pid)):
             return q.enumerators.AppStatusType.RUNNING
         return q.enumerators.AppStatusType.HALTED
 
 
-    def ping(self, appname):
-        """
-        Checks if workflowengine is still responsive
-        """
-
-        ping = yaml.dump('ping') + "\n---\n"
-        msg = ''
-        
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        config = self.getConfig(appname)
-        port = int(config['port'])
-
-        try:
-            sock.connect(('localhost', port))
-            sock.sendall(ping)
-            sock.settimeout(5)
-            msg = sock.recv(30)
-        except:
-            return False
-        sock.close()
-        return 'pong' in msg
-    
     def getConfig(self, appname):
         config_path = q.system.fs.joinPaths(q.dirs.pyAppsDir, appname, 'cfg', 'wfe.cfg')
         
