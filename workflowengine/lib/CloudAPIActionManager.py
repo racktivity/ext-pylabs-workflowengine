@@ -224,7 +224,7 @@ class AMQPInterface():
         q.logger.log("[CLOUDAPIActionManager] txAMQP initialized. Ready to receive messages.")
         for msg, key in self.delayedmessages[:]:
             self.sendMessage(msg, key)
-            self.delayedmessages.remove(msg, key)
+            self.delayedmessages.remove((msg, key))
         
     def __gotMessage(self, msg):
         try:
