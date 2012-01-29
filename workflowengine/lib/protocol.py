@@ -4,7 +4,7 @@ class RpcMessage(object):
     '''RPC Object based on q.messagehandler.rpcmessage for API compatibility'''
     def __init__(self, application=None, domain=None, category=None, \
             methodname=None, params=None, login=None, passwd=None, 
-            messageid=None, returnqueue=None):
+            messageid=None, returnqueue=None, error=None):
         
         self.application = application
         self.domain = domain
@@ -17,6 +17,7 @@ class RpcMessage(object):
         
         self.messageid = messageid
         self.returnqueue = returnqueue
+        self.error = error
 
 def encode_message(msg):
     '''Poor man's encoder'''

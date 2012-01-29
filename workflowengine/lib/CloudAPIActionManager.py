@@ -10,7 +10,7 @@ from txamqp.client import TwistedDelegate, Closed
 from txamqp.content import Content
 import txamqp.spec
 
-from workflowengine.Exceptions import ActionNotFoundException
+from workflowengine.Exceptions import ActionNotFoundException, WFLException
 from workflowengine.QueueInfrastructure import AMQPAbstraction, QueueInfrastructure, getAmqpConfig
 from workflowengine.protocol import RpcMessage, encode_message, decode_message
 from workflowengine import getAppName
@@ -76,7 +76,7 @@ class WFLActionManager():
                 # @todo: check error or not!
                 q.logger.log("[CLOUDAPIActionManager] Got message for id %s ! Result: %s" % (msg.messageid, msg.params['result']))
                 d = self.deferreds.pop(msg.messageid) 
-                d.callback(msg.params['result'])
+                d.callback(msg)
             except Exception, ex:
                 q.logger.log('[CLOUDAPIActionManager]: ERROR: %s' % ex.message)
                 raise ex
@@ -128,10 +128,19 @@ class WFLActionManager():
 
         deferred = defer.Deferred()
         self.deferreds[my_id] = deferred 
+        deferred.addCallback(self._processData)
         
         self.amqpClient.sendMessage(message, self.getRoutingKey(message))
         
         return deferred
+
+    def _processData(self, data):
+        result = data.params['result']
+        if data.error:
+            raise WFLException(**result)
+        return result
+
+
 
     def startRootobjectActionSynchronous(self, domainname, rootobjectname, actionname, params, executionparams={}, jobguid=None):        
         if not self.__engineLoaded:

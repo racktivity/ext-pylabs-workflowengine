@@ -76,8 +76,8 @@ def main():
                 
                 msg.params['result'] = ret
             except Exception, e:
-                # @todo: how define error in result?
-                msg.params['result'] = str(WFLException.create(e))
+                msg.params['result'] = WFLException.create(e).__dict__
+                msg.error = True
                 
             amqp_task.sendData(encode_message(msg), routing_key=msg.returnqueue)
                 

@@ -12,8 +12,6 @@ Extra Dependencies
 
 Known issues
 ------------
-* 1st request fails ("<Fault 8002: 'txAMQP has no connection...'>")
-* Not sure if the result format is correct when a job fails
 
 TODO
 ----
