@@ -16,6 +16,7 @@ from workflowengine.protocol import RpcMessage, encode_message, decode_message
 from workflowengine import getAppName
 
 from pylabs import q, p
+import threading
 
 ActorActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
         getAppName(), 'impl', 'actor')
@@ -132,7 +133,23 @@ class WFLActionManager():
         
         self.amqpClient.sendMessage(message, self.getRoutingKey(message))
         
-        return deferred
+        #In a threaded context we want to get the result not an deffered object
+        if not threading.currentThread().name == "MainThread":
+            result = dict()
+            lock = threading.Lock()
+            
+            def getResult(msg):
+                result['result'] = msg
+                lock.release()
+
+
+            lock.acquire()
+            deferred.addCallback(getResult)
+            lock.acquire()
+            lock.release()
+            return result['result']
+        else:
+            return deferred
 
     def _processData(self, data):
         result = data.params['result']
