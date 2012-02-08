@@ -28,7 +28,8 @@ class WFLActionManager():
     This implementation of the ActionManager is available to the cloudAPI: only root object actions are available.
     """
     def getID(self):
-        return "appserver1"
+        path = q.system.fs.joinPaths(q.dirs.pyAppsDir, self.appname, 'cfg', 'applicationserver')
+        return q.config.getConfig(path).get('main', {}).get('id', q.base.idgenerator.generateGUID())
     
     def getRoutingKey(self, msg):
         """Determine correct routing key for action"""
