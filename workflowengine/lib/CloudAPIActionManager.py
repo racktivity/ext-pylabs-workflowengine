@@ -132,24 +132,26 @@ class WFLActionManager():
         self.deferreds[my_id] = deferred 
         deferred.addCallback(self._processData)
         
-        self.amqpClient.sendMessage(message, self.getRoutingKey(message))
         
         #In a threaded context we want to get the result not an deffered object
-        if not threading.currentThread().name == "MainThread":
+        threadname = threading.currentThread().name
+        if not threadname == "MainThread":
             result = dict()
-            lock = threading.Lock()
+            event = threading.Event()
+            event.clear()
             
             def getResult(msg):
                 result['result'] = msg
-                lock.release()
+                event.set()
+                return msg
 
 
-            lock.acquire()
             deferred.addCallback(getResult)
-            lock.acquire()
-            lock.release()
+            self.amqpClient.sendMessage(message, self.getRoutingKey(message))
+            event.wait()
             return result['result']
         else:
+            self.amqpClient.sendMessage(message, self.getRoutingKey(message))
             return deferred
 
     def _processData(self, data):
