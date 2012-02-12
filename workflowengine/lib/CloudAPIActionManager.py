@@ -75,7 +75,6 @@ class WFLActionManager():
             q.logger.log("[CLOUDAPIActionManager] Got message for an unknown id !")
         else:
             try:
-                # @todo: check error or not!
                 q.logger.log("[CLOUDAPIActionManager] Got message for id %s ! Result: %s" % (msg.messageid, msg.params['result']))
                 d = self.deferreds.pop(msg.messageid) 
                 d.callback(msg)
@@ -130,7 +129,6 @@ class WFLActionManager():
 
         deferred = defer.Deferred()
         self.deferreds[my_id] = deferred 
-        deferred.addCallback(self._processData)
         
         
         #In a threaded context we want to get the result not an deffered object
@@ -146,11 +144,12 @@ class WFLActionManager():
                 return msg
 
 
-            deferred.addCallback(getResult)
+            deferred.addBoth(getResult)
             self.amqpClient.sendMessage(message, self.getRoutingKey(message))
             event.wait()
-            return result['result']
+            return self._processData(result['result'])
         else:
+            deferred.addCallback(self._processData)
             self.amqpClient.sendMessage(message, self.getRoutingKey(message))
             return deferred
 
