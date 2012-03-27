@@ -15,7 +15,7 @@ from workflowengine.QueueInfrastructure import AMQPAbstraction, QueueInfrastruct
 from workflowengine.protocol import RpcMessage, encode_message, decode_message
 from workflowengine import getAppName
 
-from pylabs import q, p
+from pylabs import q
 import threading
 
 ActorActionTaskletPath = q.system.fs.joinPaths(q.dirs.baseDir, 'pyapps',
@@ -191,6 +191,7 @@ class AMQPInterface():
         (self.host, self.port, self.vhost, self.username, self.password, self.id) = (host, port, vhost, username, password, id)
         self.spec = txamqp.spec.load(q.system.fs.joinPaths(q.dirs.cfgDir, 'amqp', 'amqp0-8.xml'))
         self.initialized = False
+        self.lock = threading.RLock()
         
         self.config = getAmqpConfig()
         self.delayedmessages = list()
@@ -250,9 +251,11 @@ class AMQPInterface():
         self.queue = yield self.connection.queue(self.id)
         self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
         q.logger.log("[CLOUDAPIActionManager] txAMQP initialized. Ready to receive messages.")
-        for msg, key in self.delayedmessages[:]:
-            self.sendMessage(msg, key)
-            self.delayedmessages.remove((msg, key))
+        with self.lock:
+            self.initialized = True
+            for msg, key in self.delayedmessages[:]:
+                self.sendMessage(msg, key)
+                self.delayedmessages.remove((msg, key))
         
     def __gotMessage(self, msg):
         try:
@@ -269,15 +272,17 @@ class AMQPInterface():
             self.queue.get().addCallbacks(self.__gotMessage, self.__lostConnection)
 
     def __lostConnection(self, exception):
-        q.logger.log("[CLOUDAPIActionManager] Connection with RabbitMQ was lost... Trying again in 10 seconds.")
+        self.initialized = False
         self.connection = None
         reactor.callLater(10, self.connect)
+        q.logger.log("[CLOUDAPIActionManager] Connection with RabbitMQ was lost... Trying again in 10 seconds.")
 
     def sendMessage(self, msg, routingkey):
-        if not hasattr(self, "connection") or self.connection is None:
-            self.delayedmessages.append((msg, routingkey))
-        else:
-            self._sendMessage(msg, routingkey)
+        with self.lock:
+            if not self.initialized:
+                self.delayedmessages.append((msg, routingkey))
+            else:
+                self._sendMessage(msg, routingkey)
 
 
     def _sendMessage(self, msg, routingkey):
@@ -287,6 +292,6 @@ class AMQPInterface():
         message = Content(encode_message(msg))
         
         q.logger.log("[CLOUDAPIActionManager] txAMQP is sending the message " + str(message))
-        ret = self.channel.basic_publish(exchange="%s.rpc" % self.config['appname'], routing_key=routingkey, content=message)
+        self.channel.basic_publish(exchange="%s.rpc" % self.config['appname'], routing_key=routingkey, content=message)
         
         
