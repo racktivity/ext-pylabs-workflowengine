@@ -32,8 +32,8 @@ class ConcurrenceTransport(xmlrpclib.Transport):
         if response.status_code != 200:
             raise xmlrpclib.ProtocolError(
                 host + handler,
-                response.status, response.reason,
-                response.msg
+                response.status, response.status_reason,
+                ','.join(request.headers)
                 )
 
         p, u = self.getparser()
