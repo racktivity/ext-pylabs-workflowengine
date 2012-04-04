@@ -12,14 +12,13 @@ from concurrence import Tasklet, dispatch
 
 from workflowengine.DRPClient import DRPTask
 from workflowengine.AMQPInterface import AMQPTask
-from workflowengine.QueueInfrastructure import QueueInfrastructure, getAmqpConfig
+from workflowengine.QueueInfrastructure import getAmqpConfig
 from workflowengine.AgentController import AgentControllerTask
 from workflowengine.WFLLogTargets import WFLJobLogTarget
 from workflowengine.Exceptions import WFLException
-from workflowengine.DebugInterface import DebugInterface
-from workflowengine.protocol import RpcMessage, encode_message
+from workflowengine.protocol import encode_message
 
-from workflowengine import getAppName, getPort
+from workflowengine import getAppName
 
 initSuccessFile = q.system.fs.joinPaths(q.dirs.varDir, 'log',
     'workflowengine.%s.initSuccess' % getAppName())
@@ -58,8 +57,6 @@ def main():
         
         amqp_cfg = getAmqpConfig()
 
-        enable_debug = config['enable_debug'] == 'True' if 'enable_debug' in config else False
-
         #INITIALIZE THE APPLICATION
         q.logger.logTargetAdd(WFLJobLogTarget())
         #q.logger.logTargetAdd(LogTargetScribe())
@@ -75,20 +72,14 @@ def main():
                 q.logger.log('Sending result message to CloudAPI for id %s - %s.%s.%s' % (msg.domain, msg.messageid, msg.category, msg.methodname), level=8)
                 
                 msg.params['result'] = ret
+                amqp_task.sendData(encode_message(msg), routing_key=msg.returnqueue)
             except Exception, e:
                 msg.params['result'] = WFLException.create(e).__dict__
                 msg.error = True
-                
-            amqp_task.sendData(encode_message(msg), routing_key=msg.returnqueue)
-                
+                amqp_task.sendData(encode_message(msg), routing_key=msg.returnqueue)
+            
         amqp_task.setMessageHandler(_handle_message)
         
-        if enable_debug:
-            debug_socket_task = SocketTask(1234) #TODO Read the port from a config file
-            debugInterface = DebugInterface(debug_socket_task)
-            debug_socket_task.setMessageHandler(debugInterface.handleMessage)
-            q.workflowengine.jobmanager.initializeDebugging()
-
         drp_task = DRPTask(config['osis_address'], config['osis_service'])
         drp_job_task = DRPTask(config['osis_address'], config['osis_service'])
         hostname = config['hostname'] if 'hostname' in config and config['hostname'] else config['xmppserver']
@@ -127,7 +118,6 @@ def main():
 
         #START THE TASKS AND REGISTER THEM IN THE Q-TREE
         amqp_task.start()
-        if enable_debug:debug_socket_task.start()
 
         drp_task.start()
         drp_task.connectDRPClient(p.api.model)
@@ -164,7 +154,7 @@ def main():
                         job.log = ( job.log or "") + logentry
                         q.logger.log('Setting running job %s to ERROR' % job.guid, 1)
                         p.api.model.core.job.save(job)
-                    except Exception, e:
+                    except Exception, ex:
                         q.logger.log('Failed to reset job %s: %s' % (jobguid, ex.message), 1)
         
         tasklet = Tasklet.new(clean_jobs)()
