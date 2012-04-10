@@ -71,7 +71,7 @@ class QueueInfrastructure(object):
 
     def createAppserverReturnQueue(self, guid):
         returnQueueName = self.getAppserverReturnQueueName(guid) 
-        self.amqpAbstraction.queue_declare(queue=returnQueueName, durable=False, exclusive=True, auto_delete=True)
+        self.amqpAbstraction.queue_declare(queue=returnQueueName, durable=False, exclusive=False, auto_delete=True)
         self.amqpAbstraction.queue_bind(queue=returnQueueName, exchange=self.wfe_rpc_return_exchange, routing_key=returnQueueName)
 
     def getAppserverReturnQueueName(self, guid):
