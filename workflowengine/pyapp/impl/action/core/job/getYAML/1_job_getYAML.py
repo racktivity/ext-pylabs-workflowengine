@@ -1,7 +1,6 @@
 __author__ = 'incubaid'
 __priority__= 3
 
-import osis
 from pymodel.serializers import YamlSerializer
 
 def main(q, i, p, params, tags):

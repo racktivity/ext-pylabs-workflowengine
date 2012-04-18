@@ -18,7 +18,7 @@ def main(q, i, p, params, tags):
                                                     -- non-recursive term
                                                     SELECT core_job.core_view_job_list.guid
                                                     FROM core_job.core_view_job_list
-                                                    WHERE core_job.core_view_job_list.parentjobguid = '%(rootobjectguid)s'
+                                                    WHERE core_job.core_view_job_list.parentjobguid = %(rootobjectguid)s
 
                                                     UNION ALL
 
@@ -31,10 +31,10 @@ def main(q, i, p, params, tags):
                                                 )
                                                 SELECT guid from childjobs
                                       )
-                or JOBLIST.guid = '%(rootobjectguid)s'
+                or JOBLIST.guid = %(rootobjectguid)s
                 ORDER BY JOBLIST.joborder;'''
 
-    jobs = p.api.model.core.job.query(sql%{'rootobjectguid': params['rootobjectguid']})
+    jobs = p.api.model.core.job.query(sql, {'rootobjectguid': params['rootobjectguid']})
     params['result'] = jobs
 
 def match(q, i, params, tags):

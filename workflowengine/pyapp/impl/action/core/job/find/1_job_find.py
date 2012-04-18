@@ -11,18 +11,20 @@ def main(q, i, p, params, tags):
                                  'rootobjectguid', 'rootobjecttype', 'fromTime', 'toTime', 'parentjobguid']
     filterOptions = {'fromTime' :   ['starttime','>= '],
                      'toTime'   :   ['endtime','<= ']}
+    queryparams = list()
     for filterType in filters:
         value = params.get(filterType, '')
         if value not in ('',0):
             default = [filterType, "="]
             filter_ = filterOptions.get(filterType, default)
-            conditionQuery.append("%s %s '%s'" % (filter_[0], filter_[1], value))
+            conditionQuery.append("%s %s %%s" % (filter_[0], filter_[1]))
+            queryparams.append(value)
     if conditionQuery:
         baseQuery += ' where %s'%' AND '.join(conditionQuery)
        
     baseQuery += ' order by starttime desc'
 
-    params['result'] = p.api.model.core.job.query(baseQuery)
+    params['result'] = p.api.model.core.job.query(baseQuery, queryparams)
 
 def match(q, i, params, tags):
     return True
