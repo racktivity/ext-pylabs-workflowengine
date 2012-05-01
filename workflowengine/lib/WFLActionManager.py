@@ -1,5 +1,3 @@
-import os.path
-
 from pylabs import q
 
 from workflowengine.Exceptions import ActionNotFoundException, WFLException
@@ -97,7 +95,7 @@ class WFLActionManager():
         #START A NEW TASKLET FOR THE JOB
 
         q.workflowengine.jobmanager.startJob(jobguid)
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (domainname, actorname, actionname), ActorActionTaskletPath)
+        Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (domainname, actorname, actionname), ActorActionTaskletPath)
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
         if msg.match(MSG_ACTION_NOWAIT):
@@ -146,6 +144,8 @@ class WFLActionManager():
             raise ActionNotFoundException("RootobjectAction", domainname, rootobjectname, actionname)
         #SETUP THE JOB AND THE PARAMS
         currentjobguid = jobguid or (hasattr(Tasklet.current(), 'jobguid') and Tasklet.current().jobguid) or None
+        if executionparams.get('rootjob'):
+            currentjobguid = None
         if q.workflowengine.jobmanager.isKilled(currentjobguid):
            raise Exception("Can't create child jobs: the job is killed !")
         
@@ -153,7 +153,7 @@ class WFLActionManager():
         #START A NEW TASKLET FOR THE JOB
         q.workflowengine.jobmanager.startJob(jobguid)
 
-        tasklet = Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (domainname, rootobjectname, actionname), path)
+        Tasklet.new(self.__execute)(Tasklet.current(), jobguid, params, (domainname, rootobjectname, actionname), path)
 
         #WAIT FOR THE ANSWER
         (msg, args, kwargs) = Tasklet.receive().next()
