@@ -15,6 +15,11 @@ class WorkflowEngineManage:
     #initFailedFile = q.system.fs.joinPaths(q.dirs.varDir, 'log', 'workflowengine.initFailed')
     #config = i.config.workflowengine.getConfig('main')
 
+    # user and group used to start the workflowengine
+    config = q.config.getConfig('main').get('main', {})
+    user = config.get('user')
+    group = config.get('group')
+
     def start(self, appname, debug=False):
         """
         Start workflow engine
@@ -53,7 +58,7 @@ class WorkflowEngineManage:
                     for file in [pidFile, stdoutFile, stderrFile, initSuccessFile, initFailedFile]:
                         if q.system.fs.exists(file): q.system.fs.remove(file)
                     if not debug:
-                        pid = q.system.process.runDaemon(workflowengineProcess, stdout=stdoutFile,  stderr=stderrFile)
+                        pid = q.system.process.runDaemon(workflowengineProcess, stdout=stdoutFile, stderr=stderrFile, user=self.user, group=self.group)
                     else:
                         q.system.process.execute("screen -dmS wfe.%s %s" %(appname, workflowengineProcess))
                         pids = q.system.process.getProcessPid(workflowengineProcess)
@@ -141,13 +146,13 @@ class WorkflowEngineManage:
 
     def getConfig(self, appname):
         config_path = q.system.fs.joinPaths(q.dirs.pyAppsDir, appname, 'cfg', 'wfe.cfg')
-        
+
         if not q.system.fs.exists(config_path):
             raise ValueError('No WFE configuration found for application %s' % appname)
-        
+
         f = q.tools.inifile.open(config_path)
         config = f.getFileAsDict()
-        
+
         if not config.has_key('main'):
             raise ValueError('No valid WFE configuration found for application %s' % appname)
 
