@@ -5,6 +5,7 @@ import traceback
 from signal import signal, SIGTERM
 
 from pylabs.InitBaseCore import q, p
+from osis.store import OsisConnection
 
 q.application.appname = "workflowengine"
 
@@ -133,9 +134,9 @@ def main():
             # Put all running jobs in error with log msg
             from pylabs.messages.LogObject import LogObject
             from pylabs.messages import toolStripNonAsciFromText
-            
+            jobTable = OsisConnection.getTableName(domain = 'ui', objType = 'job')
             f = p.api.model.core.job.getFilterObject()
-            f.add('core_view_job_list', 'jobstatus', 'RUNNING')
+            f.add(jobTable, 'jobstatus', 'RUNNING')
             running_jobs = p.api.model.core.job.find(f)
             
             q.logger.log('%s jobs to reset' % len(running_jobs), 1)

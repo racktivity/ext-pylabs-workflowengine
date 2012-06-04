@@ -1,10 +1,13 @@
 __author__ = 'incubaid'
 __priority__= 3
 
+from osis.store import OsisConnection
+
 def main(q, i, p, params, tags):
-    
-    p.api.model.core.job.query("DELETE FROM core_job.core_view_job_list;SELECT True")
-    p.api.model.core.job.query("DELETE FROM core_job.core_view_job_parentlist;SELECT True")
+    jobScheme = OsisConnection.getSchemeName(domain = 'core', objType = 'job')
+    jobTable = OsisConnection.getTableName(domain = 'core', objType = 'job')
+    p.api.model.core.job.query("DELETE FROM %s.%s;SELECT True" % (jobScheme, jobTable))
+    p.api.model.core.job.query("DELETE FROM %s.job_parentlist;SELECT True" % jobScheme)
     
     params['result'] = True
     

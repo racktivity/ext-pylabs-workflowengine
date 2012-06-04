@@ -1,8 +1,10 @@
 __author__ = 'Incubaid'
 
+from osis.store import OsisConnection
+
 def main(q, i, p, params, tags):
     osis = p.application.getOsisConnection(p.api.appname) 
-    viewname = '%s_view_%s_list' % (params['domain'], params['rootobjecttype'])
+    viewname = OsisConnection.getTableName(domain = params['domain'], objType = params['rootobjecttype']) 
     rootobject = params['rootobject']
     values = dict()
     values['name'] = rootobject.name
