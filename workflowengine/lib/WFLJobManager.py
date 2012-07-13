@@ -3,14 +3,13 @@ from pylabs import q, p
 from datetime import datetime
 from time import mktime
 
-from workflowengine.Exceptions import JobNotRunningException, WFLException
+from workflowengine.Exceptions import JobNotRunningException
 
-from workflowengine.SharedMemory import create_shm, close_shm, write_shm
+from workflowengine.SharedMemory import create_shm, write_shm
 #import stackless, yaml
-import yaml
 import traceback
 
-import sys
+import uuid
 
 from concurrence import Tasklet, Message
 class MSG_JOB_FINISHED(Message): pass
@@ -138,7 +137,7 @@ class WFLJobManager:
                     self.__killedJobs.pop(job.drp_object.guid)
 
     def appendJobLog(self, jobguid, logmessage, level=5, source=""):
-                
+
         if jobguid in self.__runningJobs:
             self.__runningJobs[jobguid].log(logmessage, level, source)
         elif jobguid in self.__stoppedJobs:
@@ -207,7 +206,7 @@ class WFLJobManager:
 
     def list_running(self):
         return (j for j in self.__runningJobs.itervalues() if j)
-    
+
     def list_root_jobs(self):
         return (j for j in self.__runningJobs.itervalues() if j and j.isRootJob())
 
@@ -263,11 +262,11 @@ class WFLJob:
         if parentjob:
             self.drp_object.parentjobguid = parentjob.drp_object.guid
             self.ancestor = parentjob.ancestor
-            
+
             # Update order in tree
             self.drp_object.order = parentjob.childJobs
             parentjob.childJobs = parentjob.childJobs + 1
-            
+
             #inherit the clouduserguid from parent job if not already set
             self.drp_object.clouduserguid = self.drp_object.clouduserguid or parentjob.drp_object.clouduserguid
 
@@ -362,6 +361,8 @@ class WFLJob:
         """
         Commits the job to the DRP.
         """
-        p.api.model.core.job.save(self.drp_object)
+        # we just don't save it anymore to speed it up
+        if not self.drp_object.guid:
+            self.drp_object.guid = str(uuid.uuid4())
 
 
