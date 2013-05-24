@@ -1,10 +1,11 @@
 from pylabs import q
 from pylabs.config import ConfigManagementItem, ItemGroupClass
 
+
 def inAppserver():
     import threading
-    q.logger.log('INAPPSERVER: %s : %s' % (q.application, hasattr(q.application, '_store')), 1)
     return hasattr(q.application, '_store') and isinstance(q.application._store, threading.local)
+
 
 def inWFE():
     return hasattr(q.application, 'appname') and q.application.appname == 'workflowengine'
@@ -54,4 +55,3 @@ class WFLConfigItem(ConfigManagementItem):
         self.dialogAskPassword('password', 'The password of the agentcontroller on the XMPP server', None)
 
 WFLConfig = ItemGroupClass(WFLConfigItem)
-
